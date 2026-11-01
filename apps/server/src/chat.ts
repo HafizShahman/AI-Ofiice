@@ -111,7 +111,7 @@ export class Chat {
       const r = await ask(systemPrompt(asAgent), prompt);
       if (r.ok) this.post({ channel, author: asAgent ? 'agent' : 'manager', name: asAgent?.name, body: r.text, agentId: asAgent?.id });
       else this.system(channel, r.text, 'fail');
-      if (!r.ok && r.text.includes("Couldn't find")) this.ai = { ...this.ai, available: false };
+      if (!r.ok && (r.text.includes("Couldn't find") || r.text.includes('inside DDEV'))) this.ai = { ...this.ai, available: false };
     } finally {
       this.busy.delete(channel);
       this.deps.push({ type: 'typing', channel, on: false });

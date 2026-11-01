@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { tmpdir } from 'node:os';
+import { accessSync, constants } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import type { AgentState, ChatMessage, OfficeEvent } from '@ai-office/shared';
 import { config } from './config.ts';
 
@@ -10,7 +12,39 @@ import { config } from './config.ts';
  * recent chat). No tools, no hooks, no MCP, nothing saved: one cheap Haiku call per question.
  */
 
-const COMMAND = process.env.OFFICE_AI_COMMAND ?? config.ai.command ?? 'claude';
+const CONFIGURED = process.env.OFFICE_AI_COMMAND ?? config.ai.command;
+const IN_DDEV = process.env.IS_DDEV_PROJECT === 'true';
+
+/**
+ * Find the Claude Code binary. A shell alias (e.g. `alias claude=~/.claude/local/claude` from
+ * the old local installer) is invisible to a spawned process, so look in PATH and then in the
+ * usual install locations.
+ */
+function findClaude(): string {
+  if (CONFIGURED) return CONFIGURED;
+  const home = homedir();
+  const candidates = [
+    ...(process.env.PATH ?? '').split(delimiter).filter(Boolean).map((d) => join(d, 'claude')),
+    join(home, '.local', 'bin', 'claude'), // native installer
+    join(home, '.claude', 'local', 'claude'), // old "local" npm install (shell alias)
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
+    join(home, '.npm-global', 'bin', 'claude'),
+    join(home, '.bun', 'bin', 'claude'),
+  ];
+  for (const c of candidates) {
+    try {
+      accessSync(c, constants.X_OK);
+      return c;
+    } catch {
+      /* next */
+    }
+  }
+  return 'claude';
+}
+
+let COMMAND = findClaude();
+console.log(`Office Manager command: ${COMMAND}${IN_DDEV ? ' (inside DDEV)' : ''}`);
 const TIMEOUT_MS = (config.ai.timeoutSec ?? 60) * 1000;
 
 /** Session ids of our own `claude -p` runs, so their hook events (if any slip through) are ignored. */
@@ -127,7 +161,9 @@ export function ask(system: string, prompt: string): Promise<AskResult> {
         ok: false,
         text:
           e.code === 'ENOENT'
-            ? `Couldn't find the \`${COMMAND}\` command on the machine running the office server. The Office Manager runs Claude Code there: install it, or set \`ai.command\` in office.config.json. (Under DDEV the server runs in the container; run \`npm run dev\` on your Mac instead.)`
+            ? IN_DDEV
+              ? "The office server is running inside DDEV, where Claude Code isn't installed. Run `ddev stop`, then `npm run dev` on your Mac, and open http://127.0.0.1:5173."
+              : `Couldn't find Claude Code (\`${COMMAND}\`) on this Mac: not in the server's PATH or the usual install folders. Run \`which claude\` in a terminal and put that path in \`ai.command\` in office.config.json, then restart \`npm run dev\`.`
             : `Couldn't start \`${COMMAND}\`: ${e.message}`,
       }),
     );
@@ -142,6 +178,7 @@ export function ask(system: string, prompt: string): Promise<AskResult> {
 
 /** Can we run the command at all? (`claude --version`) */
 export function checkAvailable(): Promise<boolean> {
+  if (!CONFIGURED) COMMAND = findClaude(); // it may have been installed since the server started
   return new Promise((resolve) => {
     const child = spawn(COMMAND, ['--version'], { cwd: tmpdir(), stdio: 'ignore' });
     const t = setTimeout(() => {

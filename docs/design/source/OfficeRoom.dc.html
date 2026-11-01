@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Office room — isometric environment</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Share+Tech+Mono&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="position: relative; width: 100%; aspect-ratio: 2400 / 1792; overflow: hidden; background: #121624; color: #E6EDF7; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+  <img src="Assets/room/bg-main-area.png" alt="" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; user-select: none; pointer-events: none;">
+
+  <sc-for list="{{items}}" as="it" hint-placeholder-count="20">
+    <sc-if value="{{it.isSprite}}" hint-placeholder-val="{{ true }}">
+      <img src="{{it.src}}" alt="" style="position: absolute; left: {{it.x}}%; top: {{it.y}}%; width: {{it.w}}%; height: auto; transform: translate(-50%, -100%); pointer-events: none; user-select: none;">
+    </sc-if>
+    <sc-if value="{{it.isRobot}}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{it.pick}}" aria-label="{{it.label}}" style="position: absolute; left: {{it.x}}%; top: {{it.y}}%; width: 4.4%; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; opacity: {{it.opacity}}">
+        <sc-if value="{{it.showTag}}" hint-placeholder-val="{{ true }}">
+          <span style="display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; border-radius: 8px; background: rgba(10,15,27,0.92); border: 1px solid {{it.tagBorder}}; box-shadow: {{it.tagGlow}}; text-align: left; white-space: nowrap;">
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #E6EDF7;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{it.dot}}; animation: {{it.dotAnim}};"></span>{{it.name}}<span style="font-weight: 400; color: #8A9BB8;">· {{it.project}}</span></span>
+            <span style="display: flex; align-items: center; gap: 5px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{it.actColor}};">
+              <sc-if value="{{it.isBlocked}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"></path></svg></sc-if>{{it.activity}}</span>
+          </span>
+        </sc-if>
+        <svg viewBox="0 0 56 74" aria-hidden="true" style="width: 100%; height: auto; overflow: visible; animation: {{it.anim}};">
+          <ellipse cx="28" cy="69" rx="18" ry="4" fill="#000000" opacity="0.55" style="display: none"></ellipse>
+          <ellipse cx="28" cy="69" rx="25" ry="6" fill="none" stroke="#22D3EE" stroke-width="2" opacity="{{it.ring}}"></ellipse>
+          <line x1="28" y1="4" x2="28" y2="12" stroke="#C9D4E5" stroke-width="2"></line>
+          <circle cx="28" cy="4" r="3.2" fill="{{it.color}}"></circle>
+          <rect x="8" y="12" width="40" height="30" rx="14" fill="#DDE5F0"></rect>
+          <rect x="13" y="19" width="30" height="15" rx="7.5" fill="#0B1220"></rect>
+          <circle cx="22" cy="26.5" r="3" fill="{{it.color}}"></circle>
+          <circle cx="34" cy="26.5" r="3" fill="{{it.color}}"></circle>
+          <rect x="15" y="44" width="26" height="21" rx="9" fill="#C9D4E5"></rect>
+          <rect x="22" y="50" width="12" height="4" rx="2" fill="{{it.color}}"></rect>
+          <rect x="8" y="46" width="6" height="14" rx="3" fill="#B7C3D6"></rect>
+          <rect x="{{it.armX}}" y="{{it.armY}}" width="6" height="{{it.armH}}" rx="3" fill="#B7C3D6"></rect>
+          <circle cx="46" cy="21" r="{{it.handR}}" fill="#FBBF24"></circle>
+        </svg>
+      </button>
+    </sc-if>
+  </sc-for>
+
+  <sc-if value="{{markers}}" hint-placeholder-val="{{ false }}">
+    <sc-for list="{{spots}}" as="s" hint-placeholder-count="15">
+      <span aria-hidden="true" style="position: absolute; left: {{s.x}}%; top: {{s.y}}%; width: 24px; height: 24px; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-items: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: {{s.fg}}; background: {{s.bg}}; box-shadow: {{s.ring}};">{{s.n}}</span>
+    </sc-for>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;markers&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true},&quot;showTags&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true},&quot;tagMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;blocked&quot;,&quot;none&quot;],&quot;default&quot;:&quot;all&quot;},&quot;highlight&quot;:{&quot;editor&quot;:null},&quot;agents&quot;:{&quot;editor&quot;:null},&quot;$preview&quot;:{&quot;width&quot;:1060,&quot;height&quot;:791}}">
+class Component extends DCLogic {
+  renderVals() {
+    var B = ''; // image paths are relative to the repo root
+    var DESK_L = B + 'Assets/sci-fi/furniture/standing-desk-left-front.png', DESK_R = B + 'Assets/sci-fi/furniture/standing-desk-right-front.png';
+    var sprites = [
+      // workstations on the left floor, every desk facing the window:
+      // rows 1-2 hold one desk each (keeps the holo-table clear), rows 3-5 hold two
+      [DESK_L, 14, 67.8, 9.5],
+      [DESK_L, 22, 72.9, 9.5],
+      [DESK_L, 30, 77.9, 9.5], [DESK_L, 37.6, 73.1, 9.5],
+      [DESK_L, 38, 83, 9.5], [DESK_L, 45.6, 78.2, 9.5],
+      [DESK_L, 46, 88.1, 9.5], [DESK_L, 53.6, 83.3, 9.5],
+      // coffee station: idle machine at the left end of the bench, the brewing one at the right
+      [B + 'Assets/sci-fi/appliances/coffee-off.png', 49.1, 32.75, 3.2],
+      [B + 'Assets/sci-fi/appliances/coffee-on.png', 54.6, 36.0, 3.2],
+      // filing cabinets side by side against the window wall
+      [B + 'Assets/sci-fi/furniture/filling-closed.png', 38.0, 44.0, 3.6],
+      [B + 'Assets/sci-fi/furniture/filling-open.png', 40.3, 42.6, 3.6],
+      [B + 'Assets/sci-fi/furniture/printer-stand.png', 45.5, 49.2, 5.6, 49.2],
+      [B + 'Assets/sci-fi/decoration/printer-working.png', 45.5, 45.7, 4.0, 49.3],
+      [B + 'Assets/sci-fi/decoration/white-board.png', 10.5, 58.5, 6.0],
+      [B + 'Assets/sci-fi/culture/bell.png', 60.5, 34, 1.6],
+      [B + 'Assets/sci-fi/decoration/monstera-plant.png', 8.5, 67, 4.2],
+      [B + 'Assets/sci-fi/decoration/money-tree.png', 50.5, 67, 3.6],
+      [B + 'Assets/sci-fi/decoration/snake-plant.png', 92.5, 64, 3.2]
+    ].map(function (s) { return { isSprite: true, isRobot: false, src: s[0], x: s[1], y: s[2], w: s[3], z: s[4] ?? s[2] }; });
+
+    var mode = this.props.tagMode || ((this.props.showTags ?? true) ? 'all' : 'none');
+    var agents = (this.props.agents || []).map(function (a) {
+      var o = {}; for (var k in a) o[k] = a[k];
+      o.isRobot = true; o.isSprite = false; o.z = a.y;
+      o.showTag = mode === 'all' || (mode === 'blocked' && !!a.isBlocked);
+      return o;
+    });
+    var items = sprites.concat(agents).sort(function (a, b) { return a.z - b.z; });
+
+    var hl = this.props.highlight ?? 0;
+    var pts = [[72,44],[87,47],[40,36],[82,24],[20,30],[31,50],[30,36],[81,57],[30,64],[52,28.5],[57,66],[69,51],[70,25],[60.5,29],[10.5,48]];
+    var spots = pts.map(function (p, k) {
+      var on = hl === k + 1;
+      return { n: k + 1, x: p[0], y: p[1], fg: on ? '#04131A' : '#22D3EE', bg: on ? '#22D3EE' : '#0E1524', ring: on ? '0 0 0 4px rgba(34,211,238,0.3), 0 0 16px rgba(34,211,238,0.8)' : '0 0 0 1.5px #22D3EE' };
+    });
+
+    return { items: items, spots: spots, markers: this.props.markers ?? false, showTags: this.props.showTags ?? true };
+  }
+}
+</script>
+</body>
+</html>

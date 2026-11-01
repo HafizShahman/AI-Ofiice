@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Office — First run</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Share+Tech+Mono&amp;display=swap">
+<style>
+body{margin:0;background:#070B14}
+a{color:#22D3EE}a:hover{color:#67E8F9}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
+@keyframes aio-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-direction: column; background: #070B14; color: #E6EDF7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px;">
+
+  <header style="min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 6px 16px; box-sizing: border-box; border-bottom: 1px solid #22304A; background: #0B1220;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7z"></path><path d="M12 8l4 2.5v4L12 17l-4-2.5v-4z"></path></svg>
+      <span style="font-family: 'Share Tech Mono', monospace; font-size: 20px; letter-spacing: 0.08em;">AI OFFICE</span>
+    </div>
+    <div style="display: flex; gap: 16px; margin: 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #8A9BB8;">
+      <span>0 working</span><span>0 idle</span><span>0 blocked</span><span>0 done</span>
+    </div>
+    <button aria-label="Settings" style="width: 36px; height: 36px; display: grid; place-items: center; border-radius: 6px; border: 1px solid #22304A; background: transparent; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg></button>
+  </header>
+
+  <main style="position: relative; flex: 1 1 auto; min-height: 852px; overflow: hidden; background: #0A101D; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;">
+    <!-- dimmed office -->
+    <div aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 0; height: 30%; background: #0B1222; border-bottom: 2px solid rgba(34,211,238,0.35);"></div>
+    <svg aria-hidden="true" viewBox="0 0 1000 550" preserveAspectRatio="none" style="position: absolute; left: 0; right: 0; top: 30%; width: 100%; height: 70%;" fill="none" stroke="#22D3EE" stroke-opacity="0.05" stroke-width="1">
+      <path vector-effect="non-scaling-stroke" d="M20 0-460 550M100 0-300 550M180 0-140 550M260 0 20 550M340 0 180 550M420 0 340 550M500 0 500 550M580 0 660 550M660 0 820 550M740 0 980 550M820 0 1140 550M900 0 1300 550M980 0 1460 550"></path>
+      <path vector-effect="non-scaling-stroke" d="M0 22H1000M0 54H1000M0 96H1000M0 148H1000M0 212H1000M0 290H1000M0 382H1000M0 490H1000"></path>
+    </svg>
+    <div aria-hidden="true" style="position: absolute; left: 50%; top: 92%; width: 120px; height: 28px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid rgba(34,211,238,0.4);"></div>
+
+    <!-- setup card -->
+    <section aria-labelledby="setup-title" style="position: relative; width: 100%; max-width: 520px; box-sizing: border-box; padding: 28px; border-radius: 14px; background: #0E1524; border: 1px solid #22304A; box-shadow: 0 16px 48px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #22D3EE;">SETUP · 2 OF 3</span>
+        <h1 id="setup-title" style="margin: 0; font-size: 22px; font-weight: 600;">Connect Claude Code to the office</h1>
+        <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #8A9BB8;">Robots appear as soon as the office receives its first hook event. Nothing leaves your machine.</p>
+      </div>
+
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+        <li style="display: flex; gap: 12px; padding: 12px; border-radius: 10px;">
+          <span style="flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(52,211,153,0.15); color: #34D399;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-weight: 600;">Office server running</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">ai-office.ddev.site:3334 · connected</span>
+          </div>
+        </li>
+        <li style="display: flex; gap: 12px; padding: 12px; border-radius: 10px; background: #141D31; border: 1px solid rgba(34,211,238,0.4);">
+          <span style="flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #22D3EE; color: #04131A; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600;">2</span>
+          <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-weight: 600;">Install the hooks</span>
+            <span style="font-size: 13px; line-height: 1.5; color: #8A9BB8;">Adds HTTP hooks to <span style="font-family: 'JetBrains Mono', monospace; color: #E6EDF7;">~/.claude/settings.json</span> and keeps a backup.</span>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 8px; background: #070B14; border: 1px solid #22304A;">
+              <code style="flex: 1 1 auto; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #67E8F9; overflow-x: auto; white-space: nowrap;">npm run install-hooks -- --url http://ai-office.ddev.site:3334/hook</code>
+              <button aria-label="Copy command" style="flex: 0 0 auto; height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 6px; border: 1px solid #22304A; background: #141D31; cursor: pointer; font-size: 12px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy</button>
+            </div>
+          </div>
+        </li>
+        <li style="display: flex; gap: 12px; padding: 12px; border-radius: 10px;">
+          <span style="flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid #2B3B5C; color: #8A9BB8; font-family: 'JetBrains Mono', monospace; font-size: 12px; box-sizing: border-box;">3</span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-weight: 600; color: #C6D2E3;">Start any Claude Code session</span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8A9BB8;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #22D3EE; animation: aio-pulse 1.6s infinite;"></span>Waiting for the first event…</span>
+          </div>
+        </li>
+      </ol>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid #22304A;">
+        <button style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 16px; margin-top: 12px; border-radius: 8px; border: 1px solid rgba(232,121,249,0.5); background: rgba(232,121,249,0.1); color: #F0ABFC; cursor: pointer; font-size: 14px; font-weight: 500;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m6 3 14 9-14 9z"></path></svg>Try demo (sim)</button>
+        <a href="#" style="margin-top: 12px; font-size: 13px;">Hook setup guide</a>
+        <span style="margin: 12px 0 0 auto; font-size: 12px; color: #8A9BB8;">Robot: “Mini Robot” by Onur, CC BY 4.0</span>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

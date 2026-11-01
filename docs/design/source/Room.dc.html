@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Office — Environment props</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Share+Tech+Mono&amp;display=swap">
+<style>
+body{margin:0;background:#070B14}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
+@keyframes aio-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes aio-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #070B14; color: #E6EDF7; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+  <header style="height: 64px; flex: 0 0 auto; display: flex; align-items: center; gap: 14px; padding: 0 20px; border-bottom: 1px solid #22304A; background: #0B1220;">
+    <span style="font-family: 'Share Tech Mono', monospace; font-size: 20px; letter-spacing: 0.08em; color: #22D3EE;">AI OFFICE</span>
+    <span style="width: 1px; height: 22px; background: #22304A;"></span>
+    <h1 style="margin: 0; font-size: 17px; font-weight: 600;">Environment — sci-fi office, props &amp; interactions</h1>
+    <span style="margin-left: auto; font-size: 13px; color: #8A9BB8;">Each prop is a destination: the agent's current event decides where it walks and what it does there.</span>
+  </header>
+
+  <div style="flex: 1 1 auto; display: flex; gap: 20px; padding: 24px 20px 24px 20px; box-sizing: border-box; min-height: 0;">
+    <div style="position: relative; flex: 0 0 1020px; align-self: flex-start; border-radius: 12px; overflow: hidden; border: 1px solid #22304A;">
+      <dc-import name="OfficeRoom" markers="{{ true }}" highlight="{{hl}}" hint-size="1020px,762px"></dc-import>
+    </div>
+
+    <section aria-labelledby="props-title" style="flex: 1 1 auto; min-width: 0; height: 764px; display: flex; flex-direction: column; border-radius: 12px; border: 1px solid #22304A; background: #0E1524;">
+      <div style="flex: 0 0 auto; padding: 14px 16px 10px; border-bottom: 1px solid #22304A; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="props-title" style="margin: 0; font-size: 15px; font-weight: 600;">Props &amp; interactions</h2>
+        <span style="font-size: 12px; color: #8A9BB8;">Select one to locate it in the room</span>
+      </div>
+      <ol style="flex: 1 1 auto; list-style: none; margin: 0; padding: 6px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;">
+        <sc-for list="{{props}}" as="p" hint-placeholder-count="14">
+          <li>
+            <button onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="width: 100%; display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 8px; border: 1px solid {{p.border}}; background: {{p.bg}}; cursor: pointer; text-align: left;">
+              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; color: {{p.numFg}}; background: {{p.numBg}}; box-shadow: 0 0 0 1.5px #22D3EE;">{{p.n}}</span>
+              <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; font-weight: 600;">{{p.name}}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #67E8F9;">{{p.trigger}}</span>
+                <span style="font-size: 12px; line-height: 1.45; color: #A9B6CC;">{{p.does}}</span>
+              </span>
+            </button>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { hl: 9 };
+  }
+  renderVals() {
+    var self = this;
+    var list = [
+      ['Command deck', 'You · UserPromptSubmit', 'Your robot sits here, then walks to the agent you prompt and briefs it.'],
+      ['Approval terminal', 'PermissionRequest · Notification', 'Agent walks up the stairs, raises its hand and waits for you.'],
+      ['Archive & printer', 'Read · Grep · Glob', 'Opens a cabinet drawer and scans files; printer runs while it reads.'],
+      ['Mission board', 'TaskCreated · TaskCompleted', 'Sticky notes appear and move across to Done.'],
+      ['City window', 'ambient', 'Skyline lights follow your local clock.'],
+      ['Holo-table', 'Plan agents · plan mode', 'Agents circle the hologram ring and gesture.'],
+      ['Comms screens', 'WebFetch · WebSearch · mcp__*', 'Swipes through the floating screens by the window.'],
+      ['Server bank', 'Bash', 'Types at the rack; LEDs flash, red on failure.'],
+      ['Workstations ×8', 'Edit · Write · NotebookEdit', 'Stands at a desk facing the window and types; screens glow.'],
+      ['Coffee bar', 'idle 45 s', 'Makes a coffee at the lab counter.'],
+      ['Lounge dais', 'idle · 2+ agents idle', 'Hangs out by the plants; idle agents chat.'],
+      ['Charging pads ×3', 'idle 3 min+ · PreCompact', 'Steps onto a glowing pad to recharge.'],
+      ['Entry door', 'SessionStart · SubagentStart · SessionEnd · SubagentStop', 'Agents walk in and out through the CLAUDE door.'],
+      ['Ship bell', 'TaskCompleted · Stop', 'Rings the bell to celebrate finished work.'],
+      ['Whiteboard', 'TodoWrite · TaskCreate', 'Sketches the plan before work starts.']
+    ];
+    var hl = this.state.hl;
+    var props = list.map(function (r, i) {
+      var n = i + 1;
+      var on = hl === n;
+      return {
+        n: n, name: r[0], trigger: r[1], does: r[2],
+        pick: function () { self.setState({ hl: n }); },
+        pressed: on ? 'true' : 'false',
+        border: on ? '#22D3EE' : 'transparent',
+        bg: on ? 'rgba(34,211,238,0.08)' : 'transparent',
+        numFg: on ? '#04131A' : '#22D3EE',
+        numBg: on ? '#22D3EE' : '#0E1524'
+      };
+    });
+    return { props: props, hl: hl };
+  }
+}
+</script>
+</body>
+</html>

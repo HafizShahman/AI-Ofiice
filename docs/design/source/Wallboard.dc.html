@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Office — Wallboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Share+Tech+Mono&amp;display=swap">
+<style>
+body{margin:0;background:#121624}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
+@keyframes aio-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes aio-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+</helmet>
+<main aria-label="Wallboard: 3 working, 1 blocked, 2 idle" style="position: relative; height: 100vh; min-height: 900px; overflow: hidden; background: #121624; color: #E6EDF7; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; justify-content: center;">
+
+  <div style="width: min(100%, calc(max(100vh, 900px) * 1.339)); flex: 0 0 auto;">
+    <dc-import name="OfficeRoom" agents="{{robots}}" tag-mode="blocked" hint-size="1205px,900px"></dc-import>
+  </div>
+
+  <span style="position: absolute; top: 32px; left: 36px; font-family: 'Share Tech Mono', monospace; font-size: 22px; letter-spacing: 0.1em; color: #22D3EE;">AI OFFICE</span>
+
+  <div style="position: absolute; top: 28px; right: 36px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+    <span style="font-family: 'Share Tech Mono', monospace; font-size: 48px; line-height: 1;">22:14</span>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #8A9BB8;">SUN 01 NOV · KUALA LUMPUR</span>
+    <button style="margin-top: 14px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #22304A; background: rgba(14,21,36,0.85); color: #8A9BB8; cursor: pointer; font-size: 13px;">Exit wallboard · <kbd style="font-family: 'JetBrains Mono', monospace;">Esc</kbd></button>
+  </div>
+
+  <div style="position: absolute; left: 36px; right: 36px; bottom: 32px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; pointer-events: none;">
+    <div style="display: flex; gap: 36px; padding: 20px 28px; border-radius: 14px; background: rgba(10,15,27,0.9); border: 1px solid #22304A;">
+      <div style="display: flex; flex-direction: column;"><span style="font-family: 'Share Tech Mono', monospace; font-size: 56px; line-height: 1; color: #22D3EE;">3</span><span style="font-size: 14px; color: #8A9BB8;">working</span></div>
+      <div style="display: flex; flex-direction: column;"><span style="font-family: 'Share Tech Mono', monospace; font-size: 56px; line-height: 1; color: #FBBF24;">1</span><span style="font-size: 14px; color: #8A9BB8;">blocked</span></div>
+      <div style="display: flex; flex-direction: column;"><span style="font-family: 'Share Tech Mono', monospace; font-size: 56px; line-height: 1; color: #C6D2E3;">2</span><span style="font-size: 14px; color: #8A9BB8;">idle</span></div>
+      <div style="display: flex; flex-direction: column;"><span style="font-family: 'Share Tech Mono', monospace; font-size: 56px; line-height: 1; color: #34D399;">12</span><span style="font-size: 14px; color: #8A9BB8;">done today</span></div>
+    </div>
+    <ol aria-label="Latest activity" style="list-style: none; margin: 0; padding: 16px 20px; width: 440px; max-width: 100%; box-sizing: border-box; border-radius: 14px; background: rgba(10,15,27,0.9); border: 1px solid #22304A; display: flex; flex-direction: column; gap: 8px; font-size: 15px;">
+      <li style="display: flex; gap: 12px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #8A9BB8;">22:14</span><span><span style="color: #FB923C;">Engineer</span> running <span style="font-family: 'JetBrains Mono', monospace;">npm test</span></span></li>
+      <li style="display: flex; gap: 12px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #8A9BB8;">22:13</span><span><span style="color: #2DD4BF;">Researcher</span> waiting at the approval terminal</span></li>
+      <li style="display: flex; gap: 12px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #8A9BB8;">22:12</span><span><span style="color: #60A5FA;">Lead Engineer</span> editing <span style="font-family: 'JetBrains Mono', monospace;">TaskCard.tsx</span></span></li>
+    </ol>
+  </div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function bot(name, project, color, x, y, activity, blocked) {
+      return {
+        name: name, project: project, color: color, x: x, y: y, activity: activity, isBlocked: !!blocked,
+        label: name, pick: function () {}, opacity: 1,
+        dot: blocked ? '#FBBF24' : '#22D3EE', dotAnim: 'none', actColor: blocked ? '#FBBF24' : '#8A9BB8',
+        tagBorder: blocked ? 'rgba(251,191,36,0.7)' : '#22304A', tagGlow: blocked ? '0 0 16px rgba(251,191,36,0.35)' : 'none',
+        anim: blocked ? 'aio-bob 1.6s ease-in-out infinite' : 'none', ring: 0,
+        armX: blocked ? 43 : 42, armY: blocked ? 22 : 46, armH: blocked ? 22 : 14, handR: blocked ? 3.5 : 0
+      };
+    }
+    return {
+      robots: [
+        bot('Lead Engineer', 'tackld', '#60A5FA', 17, 69.6, 'Editing'),
+        bot('Architect', 'tackld', '#A78BFA', 28, 56.5, 'Planning'),
+        bot('Researcher', 'tackld', '#2DD4BF', 86, 55, 'Needs you', true),
+        bot('Engineer', 'ai-office', '#FB923C', 88.5, 62.5, 'Bash'),
+        bot('QA', 'ai-office', '#F87171', 55.5, 43.5, 'Coffee'),
+        bot('Designer', 'tackld', '#F472B6', 72, 57.5, 'Charging'),
+        bot('You', 'CEO', '#FACC15', 72.5, 49, 'Watching')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

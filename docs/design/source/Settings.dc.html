@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Office — Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Share+Tech+Mono&amp;display=swap">
+<style>
+body{margin:0;background:#070B14}
+a{color:#22D3EE}a:hover{color:#67E8F9}
+button,select{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
+</style>
+</helmet>
+<div style="position: relative; min-height: 900px; background: #0A101D; color: #E6EDF7; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; overflow: hidden;">
+
+  <!-- dimmed app behind -->
+  <div aria-hidden="true" style="position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0.45;">
+    <div style="height: 48px; border-bottom: 1px solid #22304A; background: #0B1220;"></div>
+    <div style="height: 30%; background: #0D1528; border-bottom: 2px solid #22D3EE;"></div>
+    <div style="flex: 1 1 auto;"></div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(3,6,12,0.55);"></div>
+
+  <!-- drawer -->
+  <aside role="dialog" aria-modal="true" aria-labelledby="settings-title" style="position: absolute; top: 0; right: 0; bottom: 0; width: 420px; max-width: 100%; display: flex; flex-direction: column; background: #0E1524; border-left: 1px solid #22304A; box-shadow: -16px 0 48px rgba(0,0,0,0.5);">
+    <div style="flex: 0 0 auto; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 20px; border-bottom: 1px solid #22304A;">
+      <h2 id="settings-title" style="margin: 0; font-size: 16px; font-weight: 600; flex: 1 1 auto;">Settings</h2>
+      <button aria-label="Close settings" style="width: 40px; height: 40px; display: grid; place-items: center; border-radius: 6px; border: 0; background: transparent; cursor: pointer; color: #8A9BB8;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+
+    <nav aria-label="Settings sections" style="flex: 0 0 auto; display: flex; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #22304A; overflow-x: auto;">
+      <a href="#scene" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; background: #141D31; color: #E6EDF7; text-decoration: none; font-size: 13px; font-weight: 500;">Scene</a>
+      <a href="#ai" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; color: #8A9BB8; text-decoration: none; font-size: 13px;">AI</a>
+      <a href="#notify" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; color: #8A9BB8; text-decoration: none; font-size: 13px;">Alerts</a>
+      <a href="#hooks" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; color: #8A9BB8; text-decoration: none; font-size: 13px;">Hooks</a>
+      <a href="#roles" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; color: #8A9BB8; text-decoration: none; font-size: 13px;">Roles</a>
+      <a href="#about" style="flex: 0 0 auto; padding: 6px 10px; border-radius: 6px; color: #8A9BB8; text-decoration: none; font-size: 13px;">About</a>
+    </nav>
+
+    <div style="flex: 1 1 auto; overflow-y: auto; padding: 8px 20px 24px; display: flex; flex-direction: column;">
+
+      <!-- Scene -->
+      <section id="scene" style="display: flex; flex-direction: column; gap: 14px; padding: 16px 0; border-bottom: 1px solid #22304A;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">SCENE</h3>
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px;">
+          <legend style="padding: 0; margin-bottom: 8px; font-weight: 500;">Quality</legend>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 3px; border-radius: 8px; background: #070B14; border: 1px solid #22304A;">
+            <button style="height: 34px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: #8A9BB8;">Low</button>
+            <button aria-pressed="true" style="height: 34px; border: 0; border-radius: 6px; background: #22D3EE; color: #04131A; cursor: pointer; font-size: 13px; font-weight: 600;">Medium</button>
+            <button style="height: 34px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-size: 13px; color: #8A9BB8;">High</button>
+          </div>
+          <span style="font-size: 12px; line-height: 1.5; color: #8A9BB8;">DPR 1.25 · bloom on · drops a level by itself if frames stay slow.</span>
+        </fieldset>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Day / night follows clock</span><span style="font-size: 12px; color: #8A9BB8;">Lighting tracks Asia/Kuala_Lumpur time</span></span>
+          <input type="checkbox" role="switch" checked style="width: 40px; height: 22px; accent-color: #22D3EE; cursor: pointer;">
+        </label>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Glass panels</span><span style="font-size: 12px; color: #8A9BB8;">Blur behind panels · costs GPU every frame</span></span>
+          <input type="checkbox" role="switch" style="width: 40px; height: 22px; accent-color: #22D3EE; cursor: pointer;">
+        </label>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Reduce motion</span><span style="font-size: 12px; color: #8A9BB8;">Camera jumps instead of flying; robots still walk</span></span>
+          <input type="checkbox" role="switch" style="width: 40px; height: 22px; accent-color: #22D3EE; cursor: pointer;">
+        </label>
+      </section>
+
+      <!-- AI -->
+      <section id="ai" style="display: flex; flex-direction: column; gap: 14px; padding: 16px 0; border-bottom: 1px solid #22304A;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">OFFICE MANAGER AI</h3>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">AI replies</span><span style="font-size: 12px; color: #8A9BB8;">Off = zero tokens. Slash commands still work.</span></span>
+          <input type="checkbox" role="switch" checked style="width: 40px; height: 22px; accent-color: #E879F9; cursor: pointer;">
+        </label>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Model
+            <select style="height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #2B3B5C; background: #141D31; color: #E6EDF7;"><option>Haiku</option><option>Sonnet</option></select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Context events
+            <input type="number" value="30" style="height: 40px; padding: 0 10px; box-sizing: border-box; border-radius: 8px; border: 1px solid #2B3B5C; background: #141D31; color: #E6EDF7; font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+          </label>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section id="notify" style="display: flex; flex-direction: column; gap: 14px; padding: 16px 0; border-bottom: 1px solid #22304A;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">ALERTS</h3>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Browser notification when blocked</span><span style="font-size: 12px; color: #8A9BB8;">Fires when an agent raises its hand</span></span>
+          <input type="checkbox" role="switch" checked style="width: 40px; height: 22px; accent-color: #22D3EE; cursor: pointer;">
+        </label>
+        <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer;">
+          <span style="font-weight: 500;">Sound</span>
+          <input type="checkbox" role="switch" style="width: 40px; height: 22px; accent-color: #22D3EE; cursor: pointer;">
+        </label>
+      </section>
+
+      <!-- Hooks -->
+      <section id="hooks" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 0; border-bottom: 1px solid #22304A;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">HOOKS</h3>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px; background: rgba(52,211,153,0.07); border: 1px solid rgba(52,211,153,0.35);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span style="flex: 1 1 auto; font-size: 13px;">14 hooks installed · last event 4s ago</span>
+          <button style="height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid #22304A; background: #141D31; cursor: pointer; font-size: 12px;">Reinstall</button>
+        </div>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">POST http://ai-office.ddev.site:3334/hook</span>
+      </section>
+
+      <!-- Roles -->
+      <section id="roles" style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #22304A;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">ROLES</h3>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #60A5FA;"></span><span style="flex: 1 1 auto;">Lead Engineer</span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">main session</code></li>
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #2DD4BF;"></span><span style="flex: 1 1 auto;">Researcher</span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">Explore</code></li>
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #A78BFA;"></span><span style="flex: 1 1 auto;">Architect</span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">Plan</code></li>
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #F87171;"></span><span style="flex: 1 1 auto;">QA / Debugger</span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">/test|qa|debug|review/</code></li>
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #4ADE80;"></span><span style="flex: 1 1 auto;">DevOps</span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A9BB8;">/deploy|ci|infra/</code></li>
+        </ul>
+        <span style="font-size: 12px; color: #8A9BB8;">Edit in <span style="font-family: 'JetBrains Mono', monospace;">office.config.json</span></span>
+      </section>
+
+      <!-- About -->
+      <section id="about" style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0;">
+        <h3 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: #8A9BB8;">ABOUT</h3>
+        <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #C6D2E3;">AI Office v0.1.0<br>Character: based on <a href="https://sketchfab.com/3d-models/mini-robot-3454c84d6eff4a9dabbfadbfd1f56524">“Mini Robot”</a> by <a href="https://sketchfab.com/onurpearl">Onur</a>, <a href="http://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> — modified (decimated, textures resized, animated).<br>Inspired by <a href="https://github.com/W17ant/Claude-Office">Claude-Office</a> (MIT).</p>
+      </section>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

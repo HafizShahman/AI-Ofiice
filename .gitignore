@@ -15,3 +15,6 @@ Assets/mini_robot/*
 
 # older copies of the plans; the current ones live in docs/
 Claude outputs/
+
+# per-project Claude Code hooks hold the office token
+.claude/settings.local.json*

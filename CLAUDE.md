@@ -19,11 +19,15 @@ Personal project (new build). A light, local-only **isometric sci-fi office** wh
   - UI (`ui/`): top bar counters, roster, inspector card, blocked toast, #activity feed, first-run card. P1 debug view moved to `?debug`.
   - Server: `SubagentHandback` filtered; a lead whose `Stop` arrives with live subagents stays `working/delegating` and goes `done` when the last child leaves.
   - Art: `npm run build:art` (Python + Pillow) → `apps/web/public/art/*.webp` from `Assets/`.
+- **Walk grid + A\* + `?helper` editor: built** (2026-11-01).
+  - `scene/nav.ts`: one grid per level (`nav.cell`, 12 px) from `nav.areas` polygons minus obstacles (`nav.blocks` + an automatic 2:1 diamond footprint under every sprite prop, grown by one cell; `block:false` or a `block` polygon on a prop overrides it). Spots are carved open. 8-way A* (no corner cutting) + line-of-sight smoothing; floor ↔ deck via `nav.stairs` [bottom, top]. Unreachable → straight line.
+  - `layout.ts` holds the live layout (`getLayout`/`setLayout`/`onLayoutChange`); the scene rebuilds sprites and re-paths robots on change.
+  - `office/Helper.tsx` (`?helper`): drag spots, sprite feet (a single-sprite prop's spots move with it), facing points, area/obstacle corners, stairs; arrows nudge (Shift ×10), Delete removes; shows the walk grid, footprints and live robot paths. **Save** posts to the Vite dev plugin `/__helper/props` (vite.config.ts, dev only, same-origin) which writes props.json; the built app downloads it instead. `scene/serialize.ts` keeps the one-item-per-line format (round-trips byte-identical). The server reads props.json at start: restart it after adding/removing spots.
+  - The nav polygons and the approval/server-bank spots were traced by eye: check them in `?helper`.
 - **Next, in order:**
-  1. **Walk grid + A\*:** robots currently walk straight lines (through desks and the holo-table ring). Add a walkable mask over the room image and route on it; keep the stairs rule.
-  2. **`?helper` editor** to drag props/spots and write props.json; tune spots (tags overlap on the deck).
-  3. **P3 chat:** #office with the AI Office Manager; DMs (buttons are stubbed in the inspector and side panel).
-  4. Draw calls: ~7 per robot; instancing if 12 robots blow the PLAN §14 budget.
+  1. **P3 chat:** #office with the AI Office Manager; DMs (buttons are stubbed in the inspector and side panel).
+  2. **P4:** wallboard, settings drawer, ⌘K palette.
+  3. Draw calls: ~7 per robot; instancing if 12 robots blow the PLAN §14 budget. Lazy-load the helper if the bundle gets tight (247 KB gz now).
 
 ## Commands
 
@@ -49,8 +53,8 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
   - `hooks.ts`: normalise a hook payload into an `OfficeEvent`; redact
   - `state.ts`: the agent state machine (`arriving·working·blocked·idle·break·charging·done·leaving`), desk allocation, spot claiming from `props.json`, idle/break/charge timers (in `office.config.json`)
   - `roles.ts` (role regex in `office.config.json`), `db.ts` (node:sqlite at `.data/office.db`), `sim.ts`, `config.ts` (`HOST`, `PORT`, `DATA_DIR`, token in `.data/token`)
-- `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `ui/` = panels.
-- `apps/web/src/scene/props.json`: **single source of prop positions**, read by both server and web. Coordinates are **% of the 2400×1792 room image** (`Assets/room/bg-main-area.png`). `foot` is the bottom-centre anchor, `width` is a % of room width, `z` overrides draw order, and `spots` are where robots stand.
+- `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `office/Helper.tsx` = `?helper` layout editor, `ui/` = panels.
+- `apps/web/src/scene/props.json`: **single source of prop positions**, read by both server and web. Coordinates are **% of the 2400×1792 room image** (`Assets/room/bg-main-area.png`). `foot` is the bottom-centre anchor, `width` is a % of room width, `z` overrides draw order, and `spots` are where robots stand, `face` where they look, `nav` = walkable areas, obstacles and stairs.
 - `packages/shared/src/index.ts`: type-only contracts (`OfficeEvent`, `AgentState`, `ServerMessage`).
 
 ## Rules

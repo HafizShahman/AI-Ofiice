@@ -4,6 +4,9 @@ import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
 import { activityLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from '../ui/icons.tsx';
+import { Helper } from './Helper.tsx';
+
+const HELPER = new URLSearchParams(location.search).has('helper');
 
 /** The live scene, shared with the roster/inspector/keyboard so they can drive the camera. */
 export const sceneRef: { current: OfficeScene | null } = { current: null };
@@ -120,7 +123,7 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       </div>
 
       <CameraControls />
-      {children}
+      {HELPER ? <Helper /> : children}
     </div>
   );
 }

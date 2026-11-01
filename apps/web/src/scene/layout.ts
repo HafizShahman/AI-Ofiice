@@ -1,11 +1,25 @@
 import type { AgentState, Role } from '@ai-office/shared';
-import data from './props.json';
-
-/** Room space = pixels of the 2400×1792 room image. props.json stores % of it. */
-export const ROOM_W = data.room.width;
-export const ROOM_H = data.room.height;
+import initial from './props.json';
 
 export type Pt = [number, number];
+
+/** Walkable areas, extra obstacles and the stairs, all in % of the room image. */
+export interface NavDef {
+  _note?: string;
+  /** grid cell size in room px (default 12) */
+  cell?: number;
+  areas: { level: 'floor' | 'deck'; poly: Pt[] }[];
+  blocks: { id?: string; level?: 'floor' | 'deck'; poly: Pt[] }[];
+  /** [bottom (floor), top (deck)] */
+  stairs: [Pt, Pt];
+}
+
+export interface LayoutData {
+  _note?: string;
+  room: { image: string; width: number; height: number };
+  nav: NavDef;
+  props: PropDef[];
+}
 
 export interface SpriteDef {
   sprite: string;
@@ -29,10 +43,34 @@ export interface PropDef {
   spots?: Pt[];
   sprites?: SpriteDef[];
   face?: Pt;
+  /** false = robots may walk through it; a polygon (%) overrides the automatic floor footprint */
+  block?: boolean | Pt[];
 }
 
-export const PROPS = data.props as PropDef[];
-const STAIRS = data.nav.stairs as Pt[];
+// ── the live layout (props.json, or the ?helper editor's working copy) ─────
+
+let data = initial as unknown as LayoutData;
+/** Room space = pixels of the 2400×1792 room image. props.json stores % of it. */
+export const ROOM_W = data.room.width;
+export const ROOM_H = data.room.height;
+export let PROPS: PropDef[] = data.props;
+const listeners = new Set<() => void>();
+
+export const getLayout = (): LayoutData => data;
+
+/** Swap in an edited layout (the ?helper editor); the scene and nav grid rebuild. */
+export function setLayout(next: LayoutData): void {
+  data = next;
+  PROPS = next.props;
+  spotCache.clear();
+  DOOR = spotInfo('door')!;
+  for (const f of listeners) f();
+}
+
+export function onLayoutChange(f: () => void): () => void {
+  listeners.add(f);
+  return () => listeners.delete(f);
+}
 
 /** % → room px */
 export const px = (p: Pt): Pt => [(p[0] / 100) * ROOM_W, (p[1] / 100) * ROOM_H];
@@ -82,14 +120,13 @@ export function spotInfo(spot: string | null): SpotInfo | null {
 
 const dist2 = (a: Pt, b: Pt) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
 
-/** Walk route between two spots; floor ↔ deck goes through the stairs. */
-export function route(from: Pt, fromLevel: string, to: Pt, toLevel: string): Pt[] {
-  if (fromLevel === toLevel) return [to];
-  const [bottom, top] = STAIRS.map(px);
-  return fromLevel === 'floor' ? [bottom, top, to] : [top, bottom, to];
-}
+export let DOOR = spotInfo('door')!;
 
-export const DOOR = spotInfo('door')!;
+/** Spot ids in the server's format, for the helper. */
+export function spotIds(p: PropDef): string[] {
+  if (!p.spots?.length) return [];
+  return p.spots.length === 1 ? [p.id] : p.spots.map((_, i) => `${p.id}.${i + 1}`);
+}
 
 // ── role + status presentation (UI-PLAN §5) ────────────────────────────────
 

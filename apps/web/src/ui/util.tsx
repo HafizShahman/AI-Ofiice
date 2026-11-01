@@ -82,8 +82,9 @@ export function verb(tool?: string): [string, string] {
 
 export function agentName(id: string | undefined, names: Record<string, string>, e?: OfficeEvent): string {
   if (id && names[id]) return names[id];
-  if (e?.agentType) return `A ${e.agentType} agent`;
-  return e?.parentAgentId ? 'A subagent' : 'A session';
+  // agents that left before this page loaded: main sessions are always the Lead Engineer
+  if (!e?.parentAgentId) return 'Lead Engineer';
+  return e.agentType ? `${e.agentType[0].toUpperCase()}${e.agentType.slice(1)} agent` : 'A subagent';
 }
 
 /** One readable line for #activity, or null for noise (tool_end etc.). */

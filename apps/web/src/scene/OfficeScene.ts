@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Activity, AgentStatus } from '@ai-office/shared';
-import { DOOR, px, ROOM_H, ROOM_W, route, spotInfo, spriteList, artUrl, type Pt, type SpotInfo } from './layout.ts';
+import { DOOR, onLayoutChange, px, ROOM_H, ROOM_W, spotInfo, spriteList, artUrl, type Pt, type SpotInfo } from './layout.ts';
+import { findPath, type Level, type Waypoint } from './nav.ts';
 import { loadRobot, RobotRig, type Pose, type RigTemplate } from './robot.ts';
 
 /**
@@ -51,8 +52,8 @@ interface Bot {
   rig: RobotRig;
   ring: THREE.Mesh;
   pos: Pt;
-  level: string;
-  path: Pt[];
+  level: Level;
+  path: Waypoint[];
   spot: string | null;
   target: SpotInfo;
   yaw: number;
@@ -89,7 +90,12 @@ export class OfficeScene {
   private following: string | null = null;
   private selected: string | null = null;
   private dirty = true;
+  private texCache = new Map<string, THREE.Texture>();
+  private spriteQuad = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0); // origin at bottom-centre
+  private offLayout: () => void;
   onViewChange?: (v: CameraView) => void;
+  /** ?helper overlay: an element in room-px coordinates that the scene keeps aligned with the camera */
+  overlay: HTMLElement | null = null;
 
   /** @param tags DOM tags the React overlay registers; positioned over the robots every frame */
   readonly tags: Map<string, HTMLElement>;
@@ -111,6 +117,18 @@ export class OfficeScene {
     this.scene.add(rim);
 
     this.buildRoom();
+    this.buildSprites();
+    this.offLayout = onLayoutChange(() => {
+      this.buildSprites();
+      // spots may have moved: send everyone to where their spot is now
+      for (const b of this.bots.values()) {
+        const t = spotInfo(b.spot);
+        if (!t) continue;
+        b.target = t;
+        b.path = findPath(b.pos, b.level, t.pos, t.level);
+      }
+      this.dirty = true;
+    });
     loadRobot().then((t) => {
       this.template = t;
       if (this.pending) this.setAgents(this.pending);
@@ -121,13 +139,30 @@ export class OfficeScene {
 
   // ── room ────────────────────────────────────────────────────────────────
 
-  private loadTex(url: string, onLoad?: (t: THREE.Texture) => void): THREE.Texture {
-    const t = new THREE.TextureLoader().load(url, (tex) => {
-      onLoad?.(tex);
-      this.dirty = true;
-    });
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
+  /** Cached texture; onSize gets the image size once it is known. */
+  private loadTex(url: string, onSize?: (w: number, h: number) => void): THREE.Texture {
+    let t = this.texCache.get(url);
+    if (!t) {
+      t = new THREE.TextureLoader().load(url, () => (this.dirty = true));
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
+      this.texCache.set(url, t);
+    }
+    if (onSize) {
+      const tex = t;
+      const img = tex.image as HTMLImageElement | undefined;
+      if (img?.width) onSize(img.width, img.height);
+      else {
+        const poll = () => {
+          const im = tex.image as HTMLImageElement | undefined;
+          if (im?.complete && im.width) {
+            onSize(im.width, im.height);
+            this.dirty = true;
+          } else setTimeout(poll, 50);
+        };
+        poll();
+      }
+    }
     return t;
   }
 
@@ -140,23 +175,29 @@ export class OfficeScene {
     bg.renderOrder = -1e6;
     this.scene.add(bg);
 
-    const quad = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0); // origin at bottom-centre
+  }
+
+  /** (Re)place every prop sprite from the current layout. */
+  private buildSprites(): void {
+    for (const o of this.sprites) {
+      this.scene.remove(o.mesh);
+      (o.mesh.material as THREE.Material).dispose();
+    }
+    this.sprites = [];
     for (const s of spriteList()) {
       const footPx = px(s.foot);
       const wPx = (s.width / 100) * ROOM_W;
       const mat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false });
-      const mesh = new THREE.Mesh(quad, mat);
-      const idle = this.loadTex(artUrl(s.sprite), (tex) => {
-        const img = tex.image as HTMLImageElement;
-        mesh.scale.set(wPx, (wPx * img.height) / img.width, 1);
-      });
-      mat.map = idle;
+      const mesh = new THREE.Mesh(this.spriteQuad, mat);
       mesh.scale.set(wPx, wPx, 1);
+      const idle = this.loadTex(artUrl(s.sprite), (w, h) => mesh.scale.set(wPx, (wPx * h) / w, 1));
+      mat.map = idle;
       mesh.position.set(footPx[0], -footPx[1], 0);
       mesh.renderOrder = ((s.z ?? s.foot[1]) / 100) * ROOM_H;
       this.scene.add(mesh);
       this.sprites.push({ mesh, propId: s.propId, footPx, idle, busy: s.busySprite ? this.loadTex(artUrl(s.busySprite)) : undefined });
     }
+    this.dirty = true;
   }
 
   // ── agents ──────────────────────────────────────────────────────────────
@@ -174,10 +215,10 @@ export class OfficeScene {
       bot.removing = false;
       if (a.spot !== bot.spot) {
         // no free spot (every pool full): stay where it is rather than wander to the door
-        const target = spotInfo(a.spot) ?? (a.status === 'leaving' ? DOOR : { pos: bot.pos, level: bot.level as 'floor', face: null, propId: '' });
+        const target = spotInfo(a.spot) ?? (a.status === 'leaving' ? DOOR : { pos: bot.pos, level: bot.level, face: null, propId: '' });
         bot.spot = a.spot;
         bot.target = target;
-        bot.path = route(bot.pos, bot.level, target.pos, target.level);
+        bot.path = findPath(bot.pos, bot.level, target.pos, target.level);
       }
     }
     for (const [id, bot] of this.bots) if (!seen.has(id)) bot.removing = true;
@@ -205,7 +246,7 @@ export class OfficeScene {
       ring,
       pos: [...start.pos] as Pt,
       level: start.level,
-      path: fromDoor ? route(DOOR.pos, DOOR.level, target.pos, target.level) : [],
+      path: fromDoor ? findPath(DOOR.pos, DOOR.level, target.pos, target.level) : [],
       spot: a.spot,
       target,
       yaw: 0,
@@ -233,14 +274,14 @@ export class OfficeScene {
     // walk the path
     let step = WALK_SPEED * dt;
     while (step > 0 && bot.path.length) {
-      const [tx, ty] = bot.path[0];
+      const { x: tx, y: ty, level } = bot.path[0];
       const dx = tx - bot.pos[0];
       const dy = ty - bot.pos[1];
       const d = Math.hypot(dx, dy);
       if (d < 0.5) {
         bot.pos = [tx, ty];
+        bot.level = level;
         bot.path.shift();
-        if (!bot.path.length) bot.level = bot.target.level;
         continue;
       }
       const s = Math.min(step, d);
@@ -452,6 +493,7 @@ export class OfficeScene {
     cam.updateProjectionMatrix();
     this.renderer.render(this.scene, cam);
     this.placeTags();
+    if (this.overlay) this.overlay.style.transform = `translate(${this.w / 2 - v.cx * v.zoom}px, ${this.h / 2 - v.cy * v.zoom}px) scale(${v.zoom})`;
     if (camMoving) this.onViewChange?.(v);
   };
 
@@ -473,7 +515,27 @@ export class OfficeScene {
     }
   }
 
+  /** For the ?helper overlay: where every robot is and the path it is walking. */
+  walkers(): { id: string; pos: Pt; path: Waypoint[] }[] {
+    return [...this.bots.values()].map((b) => ({ id: b.id, pos: b.pos, path: b.path }));
+  }
+
+  /** Room px under a screen point (for the helper). */
+  roomAt(sx: number, sy: number): Pt {
+    return this.toRoom(sx, sy);
+  }
+
+  get zoom(): number {
+    return this.view.zoom;
+  }
+
+  /** Keep rendering every frame (the helper overlay redraws paths). */
+  invalidate(): void {
+    this.dirty = true;
+  }
+
   dispose(): void {
+    this.offLayout();
     cancelAnimationFrame(this.raf);
     for (const b of [...this.bots.values()]) this.dropBot(b);
     this.renderer.dispose();

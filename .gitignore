@@ -3,8 +3,10 @@ dist/
 .data/
 *.log
 .DS_Store
-# Sketchfab download and other large sources stay local
+# large model source (≈54 MB); keep its licence file in git. The optimised GLB in apps/web/public/models is tracked.
 Assets/source/
+Assets/mini_robot/*
+!Assets/mini_robot/license.txt
 # DDEV runtime files
 .ddev/.env
 .ddev/.homeadditions

@@ -64,5 +64,5 @@ office.config.json  desks, idle/break/charge timers, role rules, AI settings
 
 ## Credits
 
-- Character: ["Baby Rigged Robot"](https://sketchfab.com/3d-models/baby-rigged-robot-e1655eb59cae4b0d940b8adcf3df1c4a) by **teammastergame1**, licensed CC BY 4.0. Modified (decimated, re-textured, animated).
+- Character: based on ["Mini Robot"](https://sketchfab.com/3d-models/mini-robot-3454c84d6eff4a9dabbfadbfd1f56524) by [Onur](https://sketchfab.com/onurpearl), licensed [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Modified: decimated, textures resized and recompressed, animated. Source in `Assets/mini_robot/` (see its `license.txt`); `npm run build:robot` rebuilds `apps/web/public/models/robot.opt.glb`.
 - Inspired by [Claude-Office](https://github.com/W17ant/Claude-Office) (MIT).

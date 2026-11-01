@@ -2,7 +2,7 @@
   "name": "ai-office",
   "version": "0.1.0",
   "private": true,
-  "description": "Local isometric sci-fi office that visualises Claude Code agents as Baby Rigged Robot characters.",
+  "description": "Local isometric sci-fi office that visualises Claude Code agents as Mini Robot characters.",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -19,7 +19,8 @@
     "start": "npm run start --workspace @ai-office/server",
     "typecheck": "tsc -p apps/server && tsc -p apps/web",
     "install-hooks": "node scripts/install-hooks.mjs",
-    "uninstall-hooks": "node scripts/install-hooks.mjs --remove"
+    "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
+    "build:robot": "bash scripts/build-robot.sh"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

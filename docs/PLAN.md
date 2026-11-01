@@ -1,9 +1,9 @@
 # AI Virtual Office: System Plan
 
-> A lightweight, local-only **isometric sci-fi office** (painted room backdrop + sprite props) where Claude Code agents show up as 3D **Baby Rigged Robot** characters. They spawn, walk to their department, work, take breaks, raise a hand when blocked, and leave when they finish. A Slack-style panel lets you watch and chat with them.
+> A lightweight, local-only **isometric sci-fi office** (painted room backdrop + sprite props) where Claude Code agents show up as 3D **Mini Robot** characters. They spawn, walk to their department, work, take breaks, raise a hand when blocked, and leave when they finish. A Slack-style panel lets you watch and chat with them.
 >
 > Status: **New build, personal project.** Inspired by [W17ant/Claude-Office](https://github.com/W17ant/Claude-Office) (MIT).
-> Character: [Baby Rigged Robot](https://sketchfab.com/3d-models/baby-rigged-robot-e1655eb59cae4b0d940b8adcf3df1c4a) by **teammastergame1**, CC BY 4.0, so attribution is required.
+> Character: [Mini Robot](https://sketchfab.com/3d-models/mini-robot-3454c84d6eff4a9dabbfadbfd1f56524) by **Onur**, CC BY 4.0, so attribution is required. (This replaced the Baby Rigged Robot planned at first.)
 
 ---
 
@@ -235,7 +235,14 @@ The rules live in `office.config.json` (regex → role), so new custom agents sl
 
 ## 9. Character pipeline (the main technical risk)
 
-The Sketchfab model has **325k triangles and 164k vertices**. That's fine for one hero shot but too heavy for 12 skinned instances on a MacBook Air, and the page doesn't list any animations.
+**The model as delivered** (`Assets/mini_robot/scene.gltf`): **257k triangles**, 25 rigid parts (head, screen face, ears, cap, neck, body, chest, backpack, arms, arm joints, legs), 2 materials, 7 textures at 4096². **No skeleton and no animations.** Each part mesh covers both sides (one mesh holds both upper arms, another both legs).
+
+**Done:** `scripts/build-robot.sh` (`npm run build:robot`) outputs `apps/web/public/models/robot.opt.glb`: **36k triangles, 1024² WebP textures, meshopt, 0.7 MB**, with all 25 parts kept. The steps are dedup, weld, simplify 8% (error 0.0015), prune, resize, WebP and meshopt.
+
+**Still open: how to animate it** (§9 steps 4–5 below assume a skeleton, which this model doesn't have).
+
+- **Recommended: rigid procedural animation.** At build time, split each two-sided part into left and right halves and add pivot nodes at the shoulders, elbows, hips and neck. Then animate in code: walk, idle bob, typing, raise hand, drink, wave, celebrate, think. There's no Blender or Mixamo step, the file stays tiny and cheap to run, and it suits a hard-surface robot. Legs stay stiff (a cute waddle).
+- **Alternative: Mixamo auto-rig.** Merge the parts, export FBX from Blender and auto-rig it as a humanoid to get skinned clips. This gives natural motion, but the hard parts bend at the joints and it's heavier to run.
 
 **P0 asset spike, done once and scripted so it can be re-run:**
 
@@ -263,7 +270,7 @@ The Sketchfab model has **325k triangles and 164k vertices**. That's fine for on
 
 **Lighter fallback (if the Air struggles):** bake each clip × 4 directions into sprite sheets from Blender at the same camera angle, and draw robots as sprites. That drops the live skinned meshes completely.
 
-**Attribution:** the About dialog and README include: *"Baby Rigged Robot" by teammastergame1 — CC BY 4.0 — link to the original, with a note that it was modified (decimated, re-textured, animated).*
+**Attribution:** the About dialog and README include: *"Mini Robot" by Onur, CC BY 4.0, linked to the original (https://sketchfab.com/3d-models/mini-robot-3454c84d6eff4a9dabbfadbfd1f56524), with a note that it was modified (decimated, textures resized, animated).*
 
 ---
 
@@ -414,7 +421,7 @@ AI-Ofiice/
 | Hook endpoint slows Claude Code | HTTP hook, `timeout: 1`, respond-then-process, non-blocking on failure |
 | Secrets leak into the office DB | Redact at intake (§5) and never persist full `tool_input` |
 | Token cost from chat | Manager AI uses Haiku, is off by default, and slash commands are free |
-| Sketchfab license | Credit teammastergame1 (CC BY 4.0) in the UI and README, and note the modifications |
+| Sketchfab license | Credit Onur ("Mini Robot", CC BY 4.0) in the UI and README, and note the modifications |
 
 ---
 

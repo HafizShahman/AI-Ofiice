@@ -125,7 +125,7 @@
   - **Notifications:** browser notifications for blocked agents, sound on/off.
   - **Hooks:** shows the status and lets you re-run the installer command.
   - **Roles:** a read-only view of the regex → role map, editable in `office.config.json`.
-  - **About:** version, *"Baby Rigged Robot" by teammastergame1, CC BY 4.0 (modified)*, and Claude-Office credit.
+  - **About:** version, *"Mini Robot" by Onur, CC BY 4.0 (modified)*, and Claude-Office credit.
 
 ### 4.8 Command palette (⌘K, using `cmdk`)
 - Jump to an agent, switch channel, filter by project, toggle wallboard, AI, sim or quality, and run any slash command.

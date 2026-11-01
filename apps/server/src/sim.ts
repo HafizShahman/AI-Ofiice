@@ -19,6 +19,14 @@ const tool = (session: string, cwd: string, name: string, input: Record<string, 
 const RS: [string, string] = ['sim-researcher', 'Explore'];
 const AR: [string, string] = ['sim-architect', 'Plan'];
 
+/** What the demo agents "run on", keyed by agent_id (subagents) or session_id (leads). */
+const DEMO: Record<string, [model: string, effort: string]> = {
+  [S1]: ['claude-opus-5-5', 'high'],
+  [S2]: ['claude-sonnet-5-5', 'medium'],
+  [RS[0]]: ['claude-haiku-5-5', 'low'],
+  [AR[0]]: ['claude-opus-5-5', 'xhigh'],
+};
+
 const SCRIPT: Step[] = [
   [500, { hook_event_name: 'SessionStart', session_id: S1, cwd: C1, source: 'startup' }],
   [1500, { hook_event_name: 'UserPromptSubmit', session_id: S1, cwd: C1 }],
@@ -64,7 +72,8 @@ export class Sim {
     const next = () => {
       const [delay, payload] = SCRIPT[i % SCRIPT.length];
       this.timer = setTimeout(() => {
-        this.feed(payload);
+        const demo = DEMO[payload.agent_id ?? payload.session_id ?? ''];
+        this.feed(demo ? { ...payload, model: demo[0], effort: { level: demo[1] } } : payload);
         i++;
         if (i % SCRIPT.length === 0) this.timer = setTimeout(next, 8000); // pause, then loop
         else next();

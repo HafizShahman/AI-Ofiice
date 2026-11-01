@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { activityLine, asking, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, asking, modelLine, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { ApprovalBox } from './Approval.tsx';
@@ -34,6 +34,11 @@ export function Inspector() {
           <div className="font-mono text-[11px] text-muted tabular-nums">
             {a.counts.tools} tools · {a.counts.edits} edits{a.counts.failures ? ` · ${a.counts.failures} failed` : ''} · {ago(a.startedAt, now)}
           </div>
+          {modelLine(a) && (
+            <div className="truncate font-mono text-[11px] text-accent" title={a.model}>
+              {modelLine(a)}
+            </div>
+          )}
         </div>
         <span
           className="flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2 text-[12px]"

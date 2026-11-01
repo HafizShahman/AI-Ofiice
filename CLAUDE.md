@@ -41,7 +41,7 @@ Personal project (new build). A light, local-only **isometric sci-fi office** wh
 
 ```bash
 npm install
-npm run dev            # server :3334 (node --watch) + Vite :5173
+npm run dev            # server :3334 (node --watch) + Vite :5273 (5173 is DDEV's; VITE_PORT overrides)
 npm run typecheck      # tsc for server and web
 npm run build          # web → apps/web/dist (the server then serves it on :3334)
 npm run install-hooks  # adds HTTP hooks to ~/.claude/settings.json (backup; idempotent)
@@ -60,6 +60,7 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
   - `index.ts`: Hono routes (`POST /hook`, `/api/state|events|health|sim|chat/:channel|ai`), WebSocket `/ws` (first a snapshot, then batched arrays every 50 ms), and the static web build
   - `hooks.ts`: normalise a hook payload into an `OfficeEvent`; redact
   - `state.ts`: the agent state machine (`arriving·working·blocked·idle·break·charging·done·leaving`), desk allocation, spot claiming from `props.json`, idle/break/charge timers (in `office.config.json`)
+  - `model.ts`: which model an agent runs on. **Hook payloads carry no model**, only `effort.level` (on tool, stop and subagent-stop events; not on SubagentStart, UserPromptSubmit or Notification), so `effort` comes from `normalize()` and `model` from the transcript: the last assistant line's `message.model` in the tail of `transcript_path` (subagents: `<project dir>/<session>/subagents/agent-<id>.jsonl`). Looked up while unknown (retried on a timer) and at turn edges, since `/model` can change it. **Needs the server to see `~/.claude`: works on the host, not inside DDEV** (then the UI shows effort only). A subagent's `effort` is the session's setting as Claude Code reports it, not necessarily what that subagent ran with. `SessionStart` never reached the HTTP hook in testing, so agents are created on their first event.
   - `chat.ts` (channels, slash commands, pings) + `manager.ts` (the `claude -p` Office Manager) + `approvals.ts` (opt-in Allow/Deny for permission prompts)
   - `roles.ts` (role regex in `office.config.json`), `db.ts` (node:sqlite at `.data/office.db`), `sim.ts`, `config.ts` (`HOST`, `PORT`, `DATA_DIR`, token in `.data/token`)
 - `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `office/Helper.tsx` = `?helper` layout editor, `ui/` = panels.
@@ -69,7 +70,7 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
 ## Rules
 
 - **The hook endpoint must never affect a real session:** answer `200` with an empty body immediately and process afterwards. Never approve, deny or block anything on its own. The single, opt-in exception is "approve from the office" (`approvals.ts`): with it on **and** an office tab connected, a `PermissionRequest` is held (≤ `approvals.waitSec`) until the user clicks Allow / Deny / Terminal; otherwise it is released empty so Claude Code asks in the terminal.
-- **Privacy:** never store full `tool_input`. Keep only the tool name and a short redacted summary (`summarize()`/`redact()` in hooks.ts).
+- **Privacy:** never store full `tool_input`. Keep only the tool name and a short redacted summary (`summarize()`/`redact()` in hooks.ts). Transcripts are read only for `message.model` (model.ts): that one short identifier is kept; no other transcript content is stored or sent.
 - **Server TypeScript must be erasable syntax only:** no `enum`, `namespace` or constructor parameter properties. Use `.ts` extensions in relative imports, and `import type` for `@ai-office/shared`.
 - **Light:** no Docker services, Electron or extra databases. Keep the web bundle small (see the PLAN §14 budget).
 - **Art:** props use the restyled sprites in `Assets/sci-fi/`. The originals are in `Assets/{appliances,culture,decoration,furniture}`. Keep the dark gunmetal + cyan look.

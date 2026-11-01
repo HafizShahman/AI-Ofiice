@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { AgentState } from '@ai-office/shared';
 import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
-import { activityLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, modelLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from '../ui/icons.tsx';
 import { Helper } from './Helper.tsx';
@@ -132,10 +132,10 @@ export function OfficeView({ children }: { children?: ReactNode }) {
 }
 
 function AgentTag({ a, selected }: { a: AgentState; selected: boolean }) {
-  return <Tag id={a.id} name={a.name} sub={a.project} line={activityLine(a)} color={STATUS_COLOR[statusGroup(a)]} blocked={a.status === 'blocked'} selected={selected} />;
+  return <Tag id={a.id} name={a.name} sub={a.project} line={activityLine(a)} meta={modelLine(a)} color={STATUS_COLOR[statusGroup(a)]} blocked={a.status === 'blocked'} selected={selected} />;
 }
 
-function Tag(p: { id: string; name: string; sub: string; line: string; color: string; blocked?: boolean; selected?: boolean }) {
+function Tag(p: { id: string; name: string; sub: string; line: string; meta?: string; color: string; blocked?: boolean; selected?: boolean }) {
   return (
     <div
       ref={(el) => {
@@ -159,6 +159,7 @@ function Tag(p: { id: string; name: string; sub: string; line: string; color: st
           {p.blocked && <Icon name="hand" size={11} />}
           {p.line}
         </div>
+        {p.meta && <div className="truncate font-mono text-[10px] text-accent/80">{p.meta}</div>}
       </div>
     </div>
   );

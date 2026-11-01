@@ -14,6 +14,13 @@ export interface HookPayload {
   message?: string;
   /** Notification only: permission_prompt, idle_prompt, auth_success, elicitation_dialog… */
   notification_type?: string;
+  /** Tool, stop and subagent-stop events: the session's reasoning effort, e.g. { level: "xhigh" }. */
+  effort?: { level?: string };
+  /** Claude Code's hooks don't send one today; used if they ever do (and by the demo). */
+  model?: string;
+  /** Where the session's / subagent's transcript lives; read only for the model (see model.ts). */
+  transcript_path?: string;
+  agent_transcript_path?: string;
   [key: string]: unknown;
 }
 
@@ -66,7 +73,14 @@ export function normalize(p: HookPayload): OfficeEvent | null {
     cwd,
     project: cwd ? basename(cwd) : 'unknown',
     agentType: p.agent_type,
+    effort: label(rec(p.effort).level),
+    model: label(p.model),
   };
+}
+
+/** A short plain identifier (a model id, an effort level) or undefined. Anything else is dropped, never stored. */
+export function label(v: unknown): string | undefined {
+  return typeof v === 'string' && /^[\w.\-:/[\]]{1,64}$/.test(v) ? v : undefined;
 }
 
 // ── redaction ──────────────────────────────────────────────────────────────

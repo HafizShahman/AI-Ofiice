@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 const api = `http://127.0.0.1:${process.env.PORT ?? 3334}`;
+// 5173 belongs to DDEV's router (see .ddev/config.yaml, which sets VITE_PORT=5173), so a local run uses 5273.
+const port = Number(process.env.VITE_PORT ?? 5273);
 
 /** Dev only: lets the ?helper layout editor save src/scene/props.json. Not part of the built app. */
 function helperSave(): Plugin {
@@ -46,9 +48,9 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 1000 }, // three.js is most of it; PLAN §14 budget is 450 KB gzipped
   server: {
     host: process.env.VITE_HOST ?? '127.0.0.1',
-    port: 5173,
+    port,
     strictPort: true,
-    hmr: process.env.VITE_HMR_HOST ? { host: process.env.VITE_HMR_HOST, clientPort: 5173 } : undefined,
+    hmr: process.env.VITE_HMR_HOST ? { host: process.env.VITE_HMR_HOST, clientPort: port } : undefined,
     proxy: {
       '/api': { target: api, changeOrigin: false }, // keep Host = the page's host: the server's same-origin check compares them
       '/ws': { target: api.replace('http', 'ws'), ws: true },

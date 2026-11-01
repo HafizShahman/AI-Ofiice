@@ -75,6 +75,10 @@ export interface OfficeEvent {
   /** basename(cwd), shown as the agent's team */
   project: string;
   agentType?: string;
+  /** reasoning effort Claude Code reports for the session, e.g. "xhigh" */
+  effort?: string;
+  /** only when the hook payload names it (Claude Code's don't today); see AgentState.model */
+  model?: string;
 }
 
 export interface AgentState {
@@ -84,6 +88,10 @@ export interface AgentState {
   name: string;
   role: Role;
   agentType?: string;
+  /** full model id, e.g. "claude-sonnet-5-5". Read from the agent's transcript, so unknown when the server can't see it. */
+  model?: string;
+  /** latest effort level seen on the agent's events: low, medium, high, xhigh, max */
+  effort?: string;
   project: string;
   cwd: string;
   status: AgentStatus;

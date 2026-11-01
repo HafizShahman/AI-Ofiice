@@ -213,3 +213,19 @@ export function chipLine(a: AgentState): string {
   if (a.status === 'working' && a.tool) return a.tool.startsWith('mcp__') ? a.tool.split('__')[1] : a.tool;
   return activityLine(a).replace(/ ✓$/, '');
 }
+
+/** "claude-sonnet-5-5" → "Sonnet 5.5", "claude-opus-4-1-20250805" → "Opus 4.1". Shapes it doesn't know pass through. */
+export function modelName(id: string): string {
+  const parts = id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '').split('-');
+  const words = parts.filter((p) => !/^\d+$/.test(p));
+  const nums = parts.filter((p) => /^\d+$/.test(p));
+  if (!words.length) return id;
+  const name = words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+  return nums.length ? `${name} ${nums.join('.')}` : name;
+}
+
+/** "Sonnet 5.5 · xhigh". Just one half when the other isn't known (the model needs the server to see the transcript); '' when neither is. */
+export function modelLine(a: Pick<AgentState, 'model' | 'effort'>): string {
+  if (a.model) return a.effort ? `${modelName(a.model)} · ${a.effort}` : modelName(a.model);
+  return a.effort ? `${a.effort} effort` : '';
+}

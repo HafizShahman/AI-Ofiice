@@ -15,6 +15,7 @@ import { countEvents, pruneOld, recentEvents, saveEvent } from './db.ts';
 import { Sim } from './sim.ts';
 import { Chat, midnight, validChannel } from './chat.ts';
 import { ownSessions } from './manager.ts';
+import { ModelWatch } from './model.ts';
 
 // ── realtime fan-out: batch changes and flush ~20×/s so event bursts don't flood the browser ──
 
@@ -38,6 +39,8 @@ setInterval(() => {
 const lastStatus = new Map<string, AgentState['status']>();
 const pinged = new Map<string, number>(); // "name|tool|summary" → ts, so a looping demo or retry doesn't flood #office
 let chat: Chat | null = null;
+// hooks don't name the model; its transcript does (see model.ts)
+const models = new ModelWatch({ known: (id) => Boolean(office.agents.get(id)?.model), set: (id, model) => office.setModel(id, model) });
 
 const office = new Office({
   agent: (a) => {
@@ -58,6 +61,7 @@ const office = new Office({
   remove: (id) => {
     dirty.set(id, null);
     lastStatus.delete(id);
+    models.forget(id);
   },
 });
 
@@ -78,6 +82,7 @@ function ingest(p: HookPayload) {
   const e = normalize(p);
   if (!e) return;
   apply(e);
+  if (e.kind !== 'leave') models.note(e.agentId, e.kind, p);
   if (approvals.enabled && p.hook_event_name === 'PermissionRequest' && e.sessionId.startsWith('sim-')) approvals.holdSim(e, permissionDetail(e.tool ?? '', p.tool_input ?? {}));
 }
 
@@ -247,7 +252,7 @@ app.post('/api/ai', async (c) => {
   return c.json(chat!.ai);
 });
 
-// built web app (npm run build); in dev, Vite serves it on :5173 and proxies here
+// built web app (npm run build); in dev, Vite serves it on :5273 (DDEV: :5173) and proxies here
 if (existsSync(config.webDist)) {
   app.use('/*', serveStatic({ root: config.webDist }));
   app.get('*', serveStatic({ path: `${config.webDist}/index.html` }));

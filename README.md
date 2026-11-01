@@ -23,7 +23,7 @@ Requires Node **22.18+** (24 recommended): the server runs its TypeScript direct
 ```bash
 npm install
 npm run install-hooks        # once: adds the hooks to ~/.claude/settings.json (with a backup)
-npm run dev                  # server :3334 + Vite UI http://127.0.0.1:5173
+npm run dev                  # server :3334 + Vite UI http://127.0.0.1:5273 (VITE_PORT overrides; 5173 is DDEV's)
 ```
 
 ### DDEV

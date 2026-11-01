@@ -76,6 +76,8 @@ export class Office {
     }
     if (!a) a = this.create(e);
     a.lastEventAt = e.ts;
+    if (e.effort) a.effort = e.effort;
+    if (e.model) a.model = e.model;
 
     switch (e.kind) {
       case 'spawn':
@@ -128,6 +130,14 @@ export class Office {
   resume(id: string): void {
     const a = this.agents.get(id);
     if (a?.status === 'blocked') this.set(a, 'working', planFor(a.tool, a.role), Date.now());
+  }
+
+  /** The model an agent's transcript says it is running on (see model.ts). */
+  setModel(id: string, model: string): void {
+    const a = this.agents.get(id);
+    if (!a || a.model === model) return;
+    a.model = model;
+    this.listener.agent(a);
   }
 
   private liveChildren(id: string): number {

@@ -53,7 +53,7 @@
                                                                  ▼
                                                   ┌───────────────────────────────┐
                                                   │  office-web (served on :3334; │
-                                                  │  Vite dev server :5173)       │
+                                                  │  Vite dev server :5273)       │
                                                   │  ─ R3F scene + robots         │
                                                   │  ─ zustand store              │
                                                   │  ─ Chat panel (Slack-style)   │
@@ -318,7 +318,7 @@ In-memory state is authoritative while the server runs. Agents aren't persisted:
 | `POST` | `/api/ai` | `{ on }`: Office Manager on/off (saved in `settings`) · built |
 | `WS` | `/ws` | First message is a `snapshot`, then batched arrays (about 20 per second) of `agent`, `agent.remove`, `event`, `sim` · built |
 
-The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TOKEN` overrides it. One port (`:3334`) serves the hooks, the API, the WebSocket and the built UI. In dev, Vite runs on `:5173` and proxies `/api` and `/ws`.
+The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TOKEN` overrides it. One port (`:3334`) serves the hooks, the API, the WebSocket and the built UI. In dev, Vite runs on `:5273` (`VITE_PORT`; `:5173` inside DDEV) and proxies `/api` and `/ws`.
 
 ---
 
@@ -328,7 +328,7 @@ The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TO
 
 - **Container:** `webserver_type: generic` and `nodejs_version: "24"`.
 - **Daemons:** `npm run dev:server` and `npm run dev:web` run as `web_extra_daemons`.
-- **Ports:** `3334` (server; https 3335) and `5173` (Vite; http 5172).
+- **Ports:** `3334` (server; https 3335) and `5173` (Vite; http 5172). Local `npm run dev` uses `5273` so it never collides with DDEV's router; `.ddev/config.yaml` sets `VITE_PORT=5173`.
 - **Bindings:** `HOST=0.0.0.0` and `VITE_HOST=0.0.0.0` so the DDEV router can reach the server and Vite. `VITE_HMR_HOST=ai-office.ddev.site` makes hot reload work through the router.
 - **Install:** a `post-start` hook runs `npm install` and restarts the daemons.
 - **Hooks:** Claude Code runs on the Mac, so install the hooks there with `--url http://ai-office.ddev.site:3334/hook` (plain http, so Node doesn't need to trust mkcert).

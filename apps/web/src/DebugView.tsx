@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AgentState, AgentStatus, OfficeEvent, Role } from '@ai-office/shared';
 import { connect, toggleSim, useOffice } from './store.ts';
+import { modelLine } from './scene/layout.ts';
 
 // Debug view (?debug): proves the hook → server → browser pipeline and shows raw state next to the office.
 
@@ -124,7 +125,7 @@ function AgentTable({ list, now }: { list: AgentState[]; now: number }) {
     <table className="w-full border-collapse text-left text-[13px]">
       <thead className="font-mono text-[11px] tracking-wider text-muted">
         <tr className="border-b border-border">
-          {['AGENT', 'PROJECT', 'STATUS', 'ACTIVITY', 'SPOT', 'NOW', 'TOOLS', 'LAST'].map((h) => (
+          {['AGENT', 'PROJECT', 'MODEL', 'STATUS', 'ACTIVITY', 'SPOT', 'NOW', 'TOOLS', 'LAST'].map((h) => (
             <th key={h} className="px-2 py-2 font-medium">{h}</th>
           ))}
         </tr>
@@ -142,6 +143,7 @@ function AgentTable({ list, now }: { list: AgentState[]; now: number }) {
                 <div className="pl-[18px] font-mono text-[11px] text-muted">{a.agentType ?? 'main session'}{a.parentId ? ' · subagent' : ''}</div>
               </td>
               <td className="px-2 py-2 font-mono text-muted">{a.project}</td>
+              <td className="px-2 py-2 font-mono text-muted" title={a.model}>{modelLine(a) || '—'}</td>
               <td className={`px-2 py-2 ${st.color}`}>
                 <span aria-hidden>{st.icon}</span> {st.label}
               </td>

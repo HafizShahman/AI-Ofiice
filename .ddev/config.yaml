@@ -13,6 +13,7 @@ web_environment:
   - HOST=0.0.0.0
   - PORT=3334
   - VITE_HOST=0.0.0.0
+  - VITE_PORT=5173
   - VITE_HMR_HOST=ai-office.ddev.site
 
 web_extra_daemons:

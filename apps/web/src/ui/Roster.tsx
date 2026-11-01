@@ -1,4 +1,4 @@
-import { chipLine, statusGroup } from '../scene/layout.ts';
+import { chipLine, modelLine, statusGroup } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { Avatar, useAgentList } from './util.tsx';
@@ -25,7 +25,14 @@ export function Roster() {
           >
             <Avatar a={a} />
             <span className="flex flex-col leading-tight">
-              <span className="text-[13px] font-medium">{a.name}</span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-[13px] font-medium">{a.name}</span>
+                {modelLine(a) && (
+                  <span className="font-mono text-[10px] text-accent" title={a.model}>
+                    {modelLine(a)}
+                  </span>
+                )}
+              </span>
               <span className={`flex items-center gap-1 font-mono text-[11px] ${g === 'blocked' ? 'text-warning' : 'text-muted'}`}>
                 {g === 'blocked' ? (
                   <Icon name="hand" size={11} />

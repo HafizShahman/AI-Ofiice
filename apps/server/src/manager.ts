@@ -162,7 +162,7 @@ export function ask(system: string, prompt: string): Promise<AskResult> {
         text:
           e.code === 'ENOENT'
             ? IN_DDEV
-              ? "The office server is running inside DDEV, where Claude Code isn't installed. Run `ddev stop`, then `npm run dev` on your Mac, and open http://127.0.0.1:5173."
+              ? "The office server is running inside DDEV, where Claude Code isn't installed. Run `ddev stop`, then `npm run dev` on your Mac, and open http://127.0.0.1:5273."
               : `Couldn't find Claude Code (\`${COMMAND}\`) on this Mac: not in the server's PATH or the usual install folders. Run \`which claude\` in a terminal and put that path in \`ai.command\` in office.config.json, then restart \`npm run dev\`.`
             : `Couldn't start \`${COMMAND}\`: ${e.message}`,
       }),

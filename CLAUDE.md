@@ -7,12 +7,23 @@ Personal project (new build). A light, local-only **isometric sci-fi office** wh
 
 ## Status
 
-- **P1 event backbone: built** (hooks → server → WebSocket → debug view) and tested with demo payloads. **Not yet tested against a real Claude Code session.**
+- **P1 event backbone: built** (hooks → server → WebSocket → debug view) and tested with demo payloads **and a real Claude Code session** (2026-11-01, hooks → DDEV server).
+  - **Subagent tool events do carry `agent_id` and `agent_type`**, on `SubagentStart`, `SubagentStop` and every tool event inside the subagent. `normalize()` attributes them correctly (`agentId` = subagent, `parentAgentId` = session). The parent's own events, including the `Agent` call, have none.
+  - **Gotchas:** the parent's `Stop` (`turn_done`) fires while a *background* subagent is still working, so the lead must not go `done` while it has live children. The harness also emits a `SubagentHandback` pseudo-tool as a subagent's last call; filter it. Nested and parallel subagents are **untested**.
+  - Hooks hot-load: editing the settings file takes effect mid-session. Local install: `npm run install-hooks -- --settings .claude/settings.local.json --url http://ai-office.ddev.site:3334/hook` (git-ignored, one project only).
 - **Robot model:** `Assets/mini_robot/` holds "Mini Robot" by Onur (CC BY 4.0). It has **no skeleton or animations**: 25 rigid parts, and each part mesh covers both sides. `npm run build:robot` → `apps/web/public/models/robot.opt.glb` (36k tris, 0.7 MB, parts kept).
+- **P0 robot: done, rigid procedural animation** (no build-time split needed). `scene/robot.ts` bakes the parts into one space (feet y=0, height 1, facing +Z), cuts each part into L/R halves by triangle, sorts halves into head/torso/armL/armR/legL/legR by position, merges per segment and material, and animates pivots in code: walk, idle, type, read, think, raise_hand, wave, drink, celebrate, charge. Cap + ears take the role colour. `?parts` colours the segments, `?pose=<name>` forces a pose.
+- **P2 isometric office: first pass built** (2026-11-01), plain three.js (no R3F/drei, smaller bundle: 240 KB gz total).
+  - `scene/OfficeScene.ts`: ortho camera in room-pixel space; backdrop + sprites are flat quads with `depthTest:false`, `renderOrder` = foot y; robots are 3D, tipped back 30° (2:1 iso), `transparent:true` so they sort in the same pass, z = y×4 so robots depth-test only against each other. Pan (drag), zoom (wheel, buttons, +/−/0), select (click), follow (double-click / Shift+F). Busy sprites swap when a robot is at that machine.
+  - `scene/layout.ts`: spot id → room px, facing targets (`face` in props.json, else nearest sprite foot), floor↔deck routes via `nav.stairs`, role/status colours, activity text.
+  - UI (`ui/`): top bar counters, roster, inspector card, blocked toast, #activity feed, first-run card. P1 debug view moved to `?debug`.
+  - Server: `SubagentHandback` filtered; a lead whose `Stop` arrives with live subagents stays `working/delegating` and goes `done` when the last child leaves.
+  - Art: `npm run build:art` (Python + Pillow) → `apps/web/public/art/*.webp` from `Assets/`.
 - **Next, in order:**
-  1. Run a real session with hooks installed. Check whether tool events inside a subagent carry `agent_id` (see `normalize()` in `apps/server/src/hooks.ts`).
-  2. **P0 robot:** the decision is pending. Recommended: rigid procedural animation. Split two-sided parts into L/R halves at build time, add pivots at shoulders, elbows, hips and neck, and animate in code (walk, idle, type, raise_hand, drink, wave, celebrate, think). The alternative is a Mixamo auto-rig.
-  3. **P2 isometric office:** an R3F orthographic camera matched to the backdrop angle; backdrop + prop sprites + robots drawn in painter's order by foot y; walk grid + A*; `?helper` editor; railing cut-outs.
+  1. **Walk grid + A\*:** robots currently walk straight lines (through desks and the holo-table ring). Add a walkable mask over the room image and route on it; keep the stairs rule.
+  2. **`?helper` editor** to drag props/spots and write props.json; tune spots (tags overlap on the deck).
+  3. **P3 chat:** #office with the AI Office Manager; DMs (buttons are stubbed in the inspector and side panel).
+  4. Draw calls: ~7 per robot; instancing if 12 robots blow the PLAN §14 budget.
 
 ## Commands
 
@@ -25,6 +36,7 @@ npm run install-hooks  # adds HTTP hooks to ~/.claude/settings.json (backup; ide
                        #   DDEV: npm run install-hooks -- --url http://ai-office.ddev.site:3334/hook
 npm run uninstall-hooks
 npm run build:robot    # re-optimise the robot model
+npm run build:art      # room + sprite WebPs for the web app (Python + Pillow)
 ddev start             # alternative: runs server + Vite as DDEV daemons
 ```
 
@@ -37,7 +49,7 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
   - `hooks.ts`: normalise a hook payload into an `OfficeEvent`; redact
   - `state.ts`: the agent state machine (`arriving·working·blocked·idle·break·charging·done·leaving`), desk allocation, spot claiming from `props.json`, idle/break/charge timers (in `office.config.json`)
   - `roles.ts` (role regex in `office.config.json`), `db.ts` (node:sqlite at `.data/office.db`), `sim.ts`, `config.ts` (`HOST`, `PORT`, `DATA_DIR`, token in `.data/token`)
-- `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` is the P1 debug view for now.
+- `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `ui/` = panels.
 - `apps/web/src/scene/props.json`: **single source of prop positions**, read by both server and web. Coordinates are **% of the 2400×1792 room image** (`Assets/room/bg-main-area.png`). `foot` is the bottom-centre anchor, `width` is a % of room width, `z` overrides draw order, and `spots` are where robots stand.
 - `packages/shared/src/index.ts`: type-only contracts (`OfficeEvent`, `AgentState`, `ServerMessage`).
 

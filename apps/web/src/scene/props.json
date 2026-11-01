@@ -1,48 +1,32 @@
 {
-  "_note": "Positions are % of the room image (x of width, y of height). foot = bottom-centre anchor of the sprite; width = sprite width as % of room width; z = draw-order override (defaults to foot y). spots = where a robot stands to use the prop. Exported from the 'AI Office UI' canvas; fine-tune with ?helper in P2.",
-  "room": {
-    "image": "Assets/room/bg-main-area.png",
-    "width": 2400,
-    "height": 1792
-  },
+  "_note": "Positions are % of the room image (x of width, y of height). foot = bottom-centre anchor of the sprite; width = sprite width as % of room width; z = draw-order override (defaults to foot y). spots = where a robot stands to use the prop. Exported from the 'AI Office UI' canvas; fine-tune with ?helper in P2. face = point a robot turns towards at that prop (otherwise the nearest sprite foot, or the camera).",
+  "room": {"image": "Assets/room/bg-main-area.png", "width": 2400, "height": 1792},
+  "nav": {"_note": "Floor <-> deck walks go through the stairs (bottom, top). Full walk grid + A* comes later.", "stairs": [[64, 63.5], [60.5, 55.5]]},
   "props": [
-    { "id": "desk-1", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [14, 67.8], "width": 9.5, "level": "floor", "spots": [[17, 69.6]] },
-    { "id": "desk-2", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [22, 72.9], "width": 9.5, "level": "floor", "spots": [[25, 74.7]] },
-    { "id": "desk-3", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [30, 77.9], "width": 9.5, "level": "floor", "spots": [[33, 79.7]] },
-    { "id": "desk-4", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [37.6, 73.1], "width": 9.5, "level": "floor", "spots": [[40.6, 74.9]] },
-    { "id": "desk-5", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [38, 83], "width": 9.5, "level": "floor", "spots": [[41, 84.8]] },
-    { "id": "desk-6", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [45.6, 78.2], "width": 9.5, "level": "floor", "spots": [[48.6, 80]] },
-    { "id": "desk-7", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [46, 88.1], "width": 9.5, "level": "floor", "spots": [[49, 89.9]] },
-    { "id": "desk-8", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [53.6, 83.3], "width": 9.5, "level": "floor", "spots": [[56.6, 85.1]] },
-
-    { "id": "coffee", "kind": "coffee", "level": "floor", "spots": [[50.5, 41], [55.5, 43.5]],
-      "sprites": [
-        { "sprite": "sci-fi/appliances/coffee-off.png", "busySprite": "sci-fi/appliances/coffee-on.png", "foot": [49.1, 32.75], "width": 3.2 },
-        { "sprite": "sci-fi/appliances/coffee-off.png", "busySprite": "sci-fi/appliances/coffee-on.png", "foot": [54.6, 36], "width": 3.2 }
-      ] },
-
-    { "id": "archive", "kind": "archive", "level": "floor", "spots": [[40.5, 46.5], [42.8, 45.1]],
-      "sprites": [
-        { "sprite": "sci-fi/furniture/filling-closed.png", "busySprite": "sci-fi/furniture/filling-open.png", "foot": [38, 44], "width": 3.6 },
-        { "sprite": "sci-fi/furniture/filling-open.png", "foot": [40.3, 42.6], "width": 3.6 }
-      ] },
-    { "id": "printer-stand", "kind": "decor", "sprite": "sci-fi/furniture/printer-stand.png", "foot": [45.5, 49.2], "width": 5.6, "z": 49.2 },
-    { "id": "printer", "kind": "decor", "sprite": "sci-fi/decoration/printer.png", "busySprite": "sci-fi/decoration/printer-working.png", "failSprite": "sci-fi/decoration/printer-broken.png", "foot": [45.5, 45.7], "width": 4, "z": 49.3 },
-
-    { "id": "whiteboard", "kind": "whiteboard", "sprite": "sci-fi/decoration/white-board.png", "foot": [10.5, 58.5], "width": 6, "level": "floor", "spots": [[14, 61], [16.5, 59.5]] },
-    { "id": "bell", "kind": "bell", "sprite": "sci-fi/culture/bell.png", "foot": [60.5, 34], "width": 1.6, "level": "floor", "spots": [[58.5, 42.5]] },
-
-    { "id": "holo-table", "kind": "holo-table", "level": "floor", "spots": [[27, 56.5], [35, 56.5], [31, 59.5], [31, 51]] },
-    { "id": "comms", "kind": "comms", "level": "floor", "spots": [[19.5, 53.5], [23.5, 51.5]] },
-    { "id": "server-bank", "kind": "server-bank", "level": "deck", "spots": [[88.5, 62.5], [84.5, 64.5]] },
-    { "id": "approval", "kind": "approval", "level": "deck", "spots": [[86, 55], [83.5, 56.5], [88.5, 53.5]] },
-    { "id": "charging", "kind": "charging", "level": "deck", "spots": [[67.5, 53.5], [72, 57], [76, 59]] },
-    { "id": "lounge", "kind": "lounge", "level": "floor", "spots": [[55, 70], [59, 72], [62, 69], [57, 74]] },
-    { "id": "door", "kind": "door", "level": "deck", "spots": [[68.5, 44]] },
-    { "id": "ceo-desk", "kind": "ceo", "level": "deck", "spots": [[72.5, 49]] },
-
-    { "id": "plant-monstera", "kind": "decor", "sprite": "sci-fi/decoration/monstera-plant.png", "foot": [8.5, 67], "width": 4.2 },
-    { "id": "plant-money-tree", "kind": "decor", "sprite": "sci-fi/decoration/money-tree.png", "foot": [50.5, 67], "width": 3.6 },
-    { "id": "plant-snake", "kind": "decor", "sprite": "sci-fi/decoration/snake-plant.png", "foot": [92.5, 64], "width": 3.2 }
+    {"id": "desk-1", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [14, 67.8], "width": 9.5, "level": "floor", "spots": [[17, 69.6]]},
+    {"id": "desk-2", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [22, 72.9], "width": 9.5, "level": "floor", "spots": [[25, 74.7]]},
+    {"id": "desk-3", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [30, 77.9], "width": 9.5, "level": "floor", "spots": [[33, 79.7]]},
+    {"id": "desk-4", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [37.6, 73.1], "width": 9.5, "level": "floor", "spots": [[40.6, 74.9]]},
+    {"id": "desk-5", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [38, 83], "width": 9.5, "level": "floor", "spots": [[41, 84.8]]},
+    {"id": "desk-6", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [45.6, 78.2], "width": 9.5, "level": "floor", "spots": [[48.6, 80]]},
+    {"id": "desk-7", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [46, 88.1], "width": 9.5, "level": "floor", "spots": [[49, 89.9]]},
+    {"id": "desk-8", "kind": "desk", "sprite": "sci-fi/furniture/standing-desk-left-front.png", "foot": [53.6, 83.3], "width": 9.5, "level": "floor", "spots": [[56.6, 85.1]]},
+    {"id": "coffee", "kind": "coffee", "level": "floor", "spots": [[50.5, 41], [55.5, 43.5]], "sprites": [{"sprite": "sci-fi/appliances/coffee-off.png", "busySprite": "sci-fi/appliances/coffee-on.png", "foot": [49.1, 32.75], "width": 3.2}, {"sprite": "sci-fi/appliances/coffee-off.png", "busySprite": "sci-fi/appliances/coffee-on.png", "foot": [54.6, 36], "width": 3.2}]},
+    {"id": "archive", "kind": "archive", "level": "floor", "spots": [[40.5, 46.5], [42.8, 45.1]], "sprites": [{"sprite": "sci-fi/furniture/filling-closed.png", "busySprite": "sci-fi/furniture/filling-open.png", "foot": [38, 44], "width": 3.6}, {"sprite": "sci-fi/furniture/filling-open.png", "foot": [40.3, 42.6], "width": 3.6}]},
+    {"id": "printer-stand", "kind": "decor", "sprite": "sci-fi/furniture/printer-stand.png", "foot": [45.5, 49.2], "width": 5.6, "z": 49.2},
+    {"id": "printer", "kind": "decor", "sprite": "sci-fi/decoration/printer-working.png", "failSprite": "sci-fi/decoration/printer-broken.png", "foot": [45.5, 45.7], "width": 4, "z": 49.3},
+    {"id": "whiteboard", "kind": "whiteboard", "sprite": "sci-fi/decoration/white-board.png", "foot": [10.5, 58.5], "width": 6, "level": "floor", "spots": [[14, 61], [16.5, 59.5]]},
+    {"id": "bell", "kind": "bell", "sprite": "sci-fi/culture/bell.png", "foot": [60.5, 34], "width": 1.6, "level": "floor", "spots": [[58.5, 42.5]]},
+    {"id": "holo-table", "kind": "holo-table", "level": "floor", "spots": [[27, 56.5], [35, 56.5], [31, 59.5], [31, 51]], "face": [31, 55.5]},
+    {"id": "comms", "kind": "comms", "level": "floor", "spots": [[19.5, 53.5], [23.5, 51.5]], "face": [24, 45]},
+    {"id": "server-bank", "kind": "server-bank", "level": "deck", "spots": [[88.5, 62.5], [84.5, 64.5]], "face": [80, 57]},
+    {"id": "approval", "kind": "approval", "level": "deck", "spots": [[86, 55], [83.5, 56.5], [88.5, 53.5]], "face": [87.5, 50.5]},
+    {"id": "charging", "kind": "charging", "level": "deck", "spots": [[67.5, 53.5], [72, 57], [76, 59]]},
+    {"id": "lounge", "kind": "lounge", "level": "floor", "spots": [[55, 70], [59, 72], [62, 69], [57, 74]]},
+    {"id": "door", "kind": "door", "level": "deck", "spots": [[68.5, 44]]},
+    {"id": "ceo-desk", "kind": "ceo", "level": "deck", "spots": [[72.5, 49]]},
+    {"id": "plant-monstera", "kind": "decor", "sprite": "sci-fi/decoration/monstera-plant.png", "foot": [8.5, 67], "width": 4.2},
+    {"id": "plant-money-tree", "kind": "decor", "sprite": "sci-fi/decoration/money-tree.png", "foot": [50.5, 67], "width": 3.6},
+    {"id": "plant-snake", "kind": "decor", "sprite": "sci-fi/decoration/snake-plant.png", "foot": [92.5, 64], "width": 3.2}
   ]
 }

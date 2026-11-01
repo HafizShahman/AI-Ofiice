@@ -20,7 +20,8 @@
     "typecheck": "tsc -p apps/server && tsc -p apps/web",
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
-    "build:robot": "bash scripts/build-robot.sh"
+    "build:robot": "bash scripts/build-robot.sh",
+    "build:art": "python3 scripts/build-art.py"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

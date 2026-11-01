@@ -37,6 +37,8 @@ export function normalize(p: HookPayload): OfficeEvent | null {
   const name = p.hook_event_name ?? '';
   let kind = KIND[name];
   if (!kind || !p.session_id) return null;
+  // the harness's internal hand-back call at the end of every subagent; not a real tool
+  if (p.tool_name === 'SubagentHandback') return null;
 
   // "Claude needs your permission…" notifications also mean the agent is waiting on you.
   if (kind === 'notify' && /permission|approve|waiting for your input/i.test(String(p.message ?? ''))) kind = 'blocked';

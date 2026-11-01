@@ -14,6 +14,7 @@
     "@fontsource/share-tech-mono": "^5.2.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "three": "^0.170.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -21,6 +22,7 @@
     "@tailwindcss/vite": "^4.1.4",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^4.4.1",
     "tailwindcss": "^4.1.4",
     "vite": "^6.3.2"

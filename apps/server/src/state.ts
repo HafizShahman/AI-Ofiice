@@ -48,6 +48,8 @@ export interface OfficeListener {
 export class Office {
   readonly agents = new Map<string, AgentState>();
   private pending = new Map<string, Plan>();
+  /** leads whose turn ended while background subagents were still working */
+  private awaitingChildren = new Set<string>();
   private listener: OfficeListener;
 
   constructor(listener: OfficeListener) {
@@ -69,6 +71,7 @@ export class Office {
     let a = this.agents.get(e.agentId);
     if (e.kind === 'leave') {
       if (a && a.status !== 'leaving') this.set(a, 'leaving', { activity: 'leaving', kind: 'door' }, e.ts);
+      if (a?.parentId) this.childGone(a.parentId, e.ts);
       return;
     }
     if (!a) a = this.create(e);
@@ -78,6 +81,7 @@ export class Office {
       case 'spawn':
         break;
       case 'prompt':
+        this.awaitingChildren.delete(a.id);
         this.set(a, 'working', { activity: 'thinking', kind: 'desk' }, e.ts);
         break;
       case 'tool_start': {
@@ -103,7 +107,11 @@ export class Office {
         this.set(a, 'blocked', { activity: 'blocked', kind: 'approval' }, e.ts);
         break;
       case 'turn_done':
-        this.set(a, 'done', { activity: 'done', kind: 'bell' }, e.ts);
+        // Stop fires while background subagents are still working: the lead isn't done until they are
+        if (this.liveChildren(a.id)) {
+          this.awaitingChildren.add(a.id);
+          this.set(a, 'working', { activity: 'delegating', kind: 'desk' }, e.ts);
+        } else this.set(a, 'done', { activity: 'done', kind: 'bell' }, e.ts);
         break;
       case 'task_created':
         if (a.status !== 'blocked') this.set(a, 'working', { activity: 'planning', kind: 'whiteboard' }, e.ts, true);
@@ -114,6 +122,18 @@ export class Office {
       default:
         this.listener.agent(a);
     }
+  }
+
+  private liveChildren(id: string): number {
+    return [...this.agents.values()].filter((x) => x.parentId === id && x.status !== 'leaving').length;
+  }
+
+  /** A subagent left: if its lead was only waiting on it, the lead's turn is now done. */
+  private childGone(parentId: string, now: number): void {
+    const p = this.agents.get(parentId);
+    if (!p || !this.awaitingChildren.has(parentId) || this.liveChildren(parentId)) return;
+    this.awaitingChildren.delete(parentId);
+    if (p.status !== 'leaving' && p.status !== 'blocked') this.set(p, 'done', { activity: 'done', kind: 'bell' }, now);
   }
 
   private create(e: OfficeEvent): AgentState {
@@ -192,7 +212,9 @@ export class Office {
         if (inState > LEAVE_MS) {
           this.agents.delete(a.id);
           this.pending.delete(a.id);
+          this.awaitingChildren.delete(a.id);
           this.listener.remove(a.id);
+          if (a.parentId) this.childGone(a.parentId, now);
         }
         continue;
       }

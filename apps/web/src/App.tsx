@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { OfficeView, sceneRef } from './office/OfficeView.tsx';
 import { DebugView } from './DebugView.tsx';
 import { connect, useOffice } from './store.ts';
+import { toggleSound, useSoundCues } from './sound/cues.ts';
 import { TopBar } from './ui/TopBar.tsx';
 import { Roster } from './ui/Roster.tsx';
 import { BlockedToast, Inspector } from './ui/Inspector.tsx';
@@ -14,6 +15,7 @@ export function App() {
 
 function Office() {
   useEffect(() => connect(), []);
+  useSoundCues();
   useKeyboard();
   const chatOpen = useOffice((s) => s.chatOpen);
 
@@ -37,7 +39,7 @@ function Office() {
   );
 }
 
-/** UI-PLAN §6: Esc, [ ], Shift+F, C, +/−, 0. */
+/** UI-PLAN §6: Esc, [ ], Shift+F, C, +/−, 0; plus M for sound. */
 function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -54,6 +56,7 @@ function useKeyboard() {
         s.select(ids[(i + (e.key === ']' ? 1 : -1) + ids.length) % ids.length]);
       } else if (e.key === 'F' && e.shiftKey) s.selected && s.setFollowing(!s.following);
       else if (e.key === 'c' || e.key === 'C') s.toggleChat();
+      else if (e.key === 'm' || e.key === 'M') void toggleSound();
       else if (e.key === '/') s.openChannel(s.channel === 'activity' ? 'office' : s.channel, true);
       else if (e.key === '+' || e.key === '=') sceneRef.current?.zoomBy(1.25);
       else if (e.key === '-') sceneRef.current?.zoomBy(0.8);

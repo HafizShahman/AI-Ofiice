@@ -53,6 +53,18 @@ const paths = {
       <path d="M15 3v18" />
     </>
   ),
+  volume: (
+    <>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </>
+  ),
+  mute: (
+    <>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="m22 9-6 6M16 9l6 6" />
+    </>
+  ),
   logo: (
     <>
       <path d="M12 2 21 7v10l-9 5-9-5V7z" />

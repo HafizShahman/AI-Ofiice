@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Activity, AgentState, AgentStatus, OfficeEvent, PropKind } from '@ai-office/shared';
 import { config, ROOT } from './config.ts';
-import { resolveRole, ROLE_LABEL } from './roles.ts';
+import { homeDesk, resolveRole, ROLE_LABEL } from './roles.ts';
 
 // ── spots, read from the same props.json the web app draws ─────────────────
 
@@ -157,6 +157,8 @@ export class Office {
     const role = resolveRole(e.agentType, isMain);
     const same = [...this.agents.values()].filter((x) => x.role === role).length;
     const parent = e.parentAgentId ? this.agents.get(e.parentAgentId) : undefined;
+    // nobody else uses this role: its standby robot is at the home desk and this agent takes it over
+    const home = [...this.agents.values()].some((x) => x.role === role && x.status !== 'leaving') ? null : homeDesk(role);
     const a: AgentState = {
       id: e.agentId,
       sessionId: e.sessionId,
@@ -169,26 +171,29 @@ export class Office {
       status: 'arriving',
       activity: 'arriving',
       spot: 'door',
-      desk: this.freeDesk(parent?.desk ?? null),
+      desk: this.freeDesk(home),
       startedAt: e.ts,
       lastEventAt: e.ts,
       statusSince: e.ts,
       counts: { tools: 0, edits: 0, commands: 0, failures: 0 },
     };
     this.agents.set(a.id, a);
-    // first sighting mid-session (server restarted): skip the walk-in
-    if (e.kind !== 'spawn') this.set(a, 'idle', { activity: 'idle', kind: 'desk' }, e.ts);
+    // first sighting mid-session (server restarted) or taking over a standby robot in place: skip the walk-in
+    if (e.kind !== 'spawn' || (home !== null && a.desk === home)) this.set(a, 'idle', { activity: 'idle', kind: 'desk' }, e.ts);
     else this.listener.agent(a);
     return a;
   }
 
-  /** Free desk, nearest to the parent's desk when there is one. */
-  private freeDesk(near: number | null): number | null {
+  /**
+   * Free desk: the role's home desk when it is free. Otherwise (an extra robot for a role already in use) the
+   * highest free one: home desks run from the common roles to the rare ones (see ROLE_ORDER), so extras
+   * displace the roles least likely to turn up.
+   */
+  private freeDesk(home: number | null): number | null {
     const used = new Set([...this.agents.values()].map((x) => x.desk));
     const free = Array.from({ length: DESK_COUNT }, (_, i) => i + 1).filter((d) => !used.has(d));
-    if (!free.length) return null;
-    if (near == null) return free[0];
-    return free.sort((x, y) => Math.abs(x - near) - Math.abs(y - near))[0];
+    if (home !== null && free.includes(home)) return home;
+    return free.length ? free[free.length - 1] : null;
   }
 
   /** Claim a free spot of a kind. Desks are owned; the door never runs out. */

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { AgentState } from '@ai-office/shared';
 import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
-import { activityLine, modelLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, modelLine, ROLE_COLOR, ROLE_LABEL, standbyRobots, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { bindSceneSound } from '../sound/cues.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from '../ui/icons.tsx';
 import { Helper } from './Helper.tsx';
@@ -16,6 +17,9 @@ const tagEls = new Map<string, HTMLElement>();
 
 const ceoWalking = () => sceneRef.current?.isWalking('ceo') ?? null;
 
+/** Robots that are scenery rather than agents: the CEO and the standby role robots. They can't be selected. */
+const fixture = (id: string | null | undefined) => id === 'ceo' || Boolean(id?.startsWith('standby-'));
+
 export function OfficeView({ children }: { children?: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -23,14 +27,18 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   const selected = useOffice((s) => s.selected);
   const following = useOffice((s) => s.following);
   const list = useMemo(() => Object.values(agents).sort((a, b) => a.startedAt - b.startedAt), [agents]);
+  // every role has a robot: the ones no agent is using wait at their desks
+  const standby = useMemo(() => standbyRobots(list), [list]);
 
   // mount the scene once
   useEffect(() => {
     const scene = new OfficeScene(canvas.current!, tagEls);
     sceneRef.current = scene;
+    const unbindSound = bindSceneSound(scene);
     const ro = new ResizeObserver(([e]) => scene.resize(e.contentRect.width, e.contentRect.height));
     ro.observe(wrap.current!);
     return () => {
+      unbindSound();
       ro.disconnect();
       scene.dispose();
       sceneRef.current = null;
@@ -40,11 +48,13 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   const ceo = useCeoRounds(ceoWalking);
   useEffect(() => {
     const ceoAgent: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: ceo.spot, status: 'idle', activity: ceo.activity };
+    const waiting: SceneAgent[] = standby.map((s) => ({ id: `standby-${s.role}`, color: ROLE_COLOR[s.role], spot: s.spot, status: 'idle', activity: 'idle' }));
     sceneRef.current?.setAgents([
       ceoAgent,
+      ...waiting,
       ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], spot: a.spot, status: a.status, activity: a.activity })),
     ]);
-  }, [list, ceo]);
+  }, [list, standby, ceo]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
@@ -83,7 +93,7 @@ export function OfficeView({ children }: { children?: ReactNode }) {
         if (!scene) return;
         if (!d) {
           const hit = scene.hitTest(local(e).x, local(e).y);
-          wrap.current!.style.cursor = hit && hit !== 'ceo' ? 'pointer' : 'grab';
+          wrap.current!.style.cursor = hit && !fixture(hit) ? 'pointer' : 'grab';
           return;
         }
         const dx = e.clientX - d.x;
@@ -100,11 +110,11 @@ export function OfficeView({ children }: { children?: ReactNode }) {
         drag.current = null;
         if (!d || d.moved) return;
         const hit = sceneRef.current?.hitTest(local(e).x, local(e).y) ?? null;
-        if (hit !== 'ceo') useOffice.getState().select(hit);
+        if (!fixture(hit)) useOffice.getState().select(hit);
       }}
       onDoubleClick={(e) => {
         const hit = sceneRef.current?.hitTest(local(e).x, local(e).y);
-        if (hit && hit !== 'ceo') {
+        if (hit && !fixture(hit)) {
           useOffice.getState().select(hit);
           useOffice.getState().setFollowing(true);
         }
@@ -120,6 +130,9 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       {/* overhead tags, positioned by the scene every frame */}
       <div className="pointer-events-none absolute inset-0">
         <Tag id="ceo" name="You" sub="CEO" line={ceo.line} color={ROLE_COLOR.ceo} />
+        {standby.map((s) => (
+          <Tag key={`standby-${s.role}`} id={`standby-${s.role}`} name={ROLE_LABEL[s.role]} sub="Standby" line="" color={STATUS_COLOR.idle} />
+        ))}
         {list.map((a) => (
           <AgentTag key={a.id} a={a} selected={a.id === selected} />
         ))}
@@ -155,10 +168,12 @@ function Tag(p: { id: string; name: string; sub: string; line: string; meta?: st
           <span className="font-semibold">{p.name}</span>
           <span className="truncate text-muted">· {p.sub}</span>
         </div>
-        <div className={`flex items-center gap-1 truncate font-mono text-[11px] ${p.blocked ? 'text-warning' : 'text-muted'}`}>
-          {p.blocked && <Icon name="hand" size={11} />}
-          {p.line}
-        </div>
+        {p.line && (
+          <div className={`flex items-center gap-1 truncate font-mono text-[11px] ${p.blocked ? 'text-warning' : 'text-muted'}`}>
+            {p.blocked && <Icon name="hand" size={11} />}
+            {p.line}
+          </div>
+        )}
         {p.meta && <div className="truncate font-mono text-[10px] text-accent/80">{p.meta}</div>}
       </div>
     </div>

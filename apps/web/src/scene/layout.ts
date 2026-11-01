@@ -152,6 +152,59 @@ export const ROLE_INITIALS: Record<Role | 'ceo', string> = {
   designer: 'DS',
 };
 
+/** Keep in step with ROLE_ORDER in apps/server/src/roles.ts: desk 1 is the first role's home desk, and so on. */
+export const ROLE_ORDER: Role[] = ['lead', 'researcher', 'architect', 'engineer', 'qa', 'devops', 'designer'];
+
+export const ROLE_LABEL: Record<Role, string> = {
+  lead: 'Lead Engineer',
+  researcher: 'Researcher',
+  architect: 'Architect',
+  engineer: 'Engineer',
+  qa: 'QA',
+  devops: 'DevOps',
+  designer: 'Designer',
+};
+
+export interface Standby {
+  role: Role;
+  spot: string;
+}
+
+/**
+ * The roles no agent is using, each sitting at a free desk: its home desk when that is free, otherwise the
+ * next free one, then a free lounge spot. An agent that takes a vacant role wakes up at the same home desk
+ * (see the server's create()). A role gets no robot only when the desks and the lounge are all taken.
+ */
+export function standbyRobots(agents: AgentState[]): Standby[] {
+  const count = PROPS.filter((p) => p.kind === 'desk').length;
+  const live = agents.filter((a) => a.status !== 'leaving'); // a leaving robot is already walking away from its desk
+  const used = new Set(live.map((a) => a.desk));
+  const vacant = ROLE_ORDER.filter((r) => !live.some((a) => a.role === r));
+  const spot = new Map<Role, string>();
+  for (const r of vacant) {
+    const home = ROLE_ORDER.indexOf(r) + 1;
+    if (home <= count && !used.has(home)) {
+      spot.set(r, `desk-${home}`);
+      used.add(home);
+    }
+  }
+  const taken = new Set(live.map((a) => a.spot));
+  const lounge = PROPS.filter((p) => p.kind === 'lounge').flatMap(spotIds).filter((s) => !taken.has(s));
+  for (const r of vacant) {
+    if (spot.has(r)) continue;
+    let n = 1;
+    while (n <= count && used.has(n)) n++;
+    if (n <= count) {
+      spot.set(r, `desk-${n}`);
+      used.add(n);
+    } else {
+      const s = lounge.shift();
+      if (s) spot.set(r, s);
+    }
+  }
+  return vacant.flatMap((r) => (spot.has(r) ? [{ role: r, spot: spot.get(r)! }] : []));
+}
+
 export type StatusGroup = 'working' | 'idle' | 'blocked' | 'done';
 
 export function statusGroup(a: AgentState): StatusGroup {

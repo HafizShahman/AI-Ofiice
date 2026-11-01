@@ -6,6 +6,8 @@ export type Connection = 'connecting' | 'open' | 'closed';
 interface OfficeStore {
   connection: Connection;
   retries: number;
+  /** bumped on every snapshot, so a listener can tell a re-sync from live changes */
+  epoch: number;
   agents: Record<string, AgentState>;
   /** every agent name seen this session, so #activity can name agents that already left */
   names: Record<string, string>;
@@ -42,6 +44,7 @@ const MAX_EVENTS = 300;
 export const useOffice = create<OfficeStore>((set) => ({
   connection: 'connecting',
   retries: 0,
+  epoch: 0,
   agents: {},
   names: {},
   events: [],
@@ -78,9 +81,11 @@ export const useOffice = create<OfficeStore>((set) => ({
   apply: (msgs) =>
     set((s) => {
       let { agents, events, sim, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec } = s;
+      let { epoch } = s;
       let reload = false;
       for (const m of msgs) {
         if (m.type === 'snapshot') {
+          epoch++;
           agents = Object.fromEntries(m.state.agents.map((a) => [a.id, a]));
           names = { ...names, ...Object.fromEntries(m.state.agents.map((a) => [a.id, a.name])) };
           events = m.state.events;
@@ -127,7 +132,7 @@ export const useOffice = create<OfficeStore>((set) => ({
       }
       const selected = s.selected && !agents[s.selected] && s.selected !== 'ceo' ? null : s.selected;
       if (reload && s.channel !== 'activity') queueMicrotask(() => void loadChannel(s.channel));
-      return { agents, events, sim, selected, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec };
+      return { epoch, agents, events, sim, selected, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec };
     }),
 }));
 

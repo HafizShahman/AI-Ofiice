@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useSound } from '../sound/engine.ts';
+import { previewVolume, toggleSound } from '../sound/cues.ts';
 import { setAi, toggleSim, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { useCounts } from './util.tsx';
@@ -11,6 +13,8 @@ export function TopBar() {
   const connection = useOffice((s) => s.connection);
   const chatOpen = useOffice((s) => s.chatOpen);
   const ai = useOffice((s) => s.ai);
+  const soundOn = useSound((s) => s.on);
+  const volume = useSound((s) => s.volume);
   const firstBlocked = useOffice((s) => Object.values(s.agents).find((a) => a.status === 'blocked')?.id);
 
   return (
@@ -66,6 +70,31 @@ export function TopBar() {
           <Icon name="sparkle" />
           {ai.enabled ? `AI on · ${ai.model[0].toUpperCase()}${ai.model.slice(1)}` : 'AI off'}
         </button>
+        <div className={`${chip} rounded-full ${soundOn ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border text-muted hover:text-text'}`}>
+          <button
+            onClick={() => void toggleSound()}
+            aria-pressed={soundOn}
+            title={soundOn ? 'Turn sound off (M)' : 'Turn on office sound: footsteps, typing, chimes (M)'}
+            className="flex items-center gap-2"
+          >
+            <Icon name={soundOn ? 'volume' : 'mute'} />
+            {soundOn ? 'Sound on' : 'Sound off'}
+          </button>
+          {soundOn && (
+            <input
+              type="range"
+              aria-label="Volume"
+              min={0}
+              max={100}
+              value={Math.round(volume * 100)}
+              onChange={(e) => {
+                useSound.getState().setVolume(Number(e.target.value) / 100);
+                previewVolume();
+              }}
+              className="h-1 w-16 accent-accent"
+            />
+          )}
+        </div>
         <button
           aria-label={chatOpen ? 'Hide side panel' : 'Show side panel'}
           title="Toggle side panel (C)"

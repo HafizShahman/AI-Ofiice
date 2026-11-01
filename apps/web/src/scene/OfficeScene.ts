@@ -26,6 +26,12 @@ export interface CameraView {
   zoom: number; // screen px per room px
 }
 
+/** Where something sits relative to the view: stereo pan, and loudness (quieter when far from the middle). */
+export interface Spatial {
+  pan: number;
+  gain: number;
+}
+
 const ROBOT_H = 150; // room px, feet to antenna tip
 const TILT = Math.PI / 6; // 30°: 2:1 isometric
 const WALK_SPEED = 230; // room px / s
@@ -59,6 +65,9 @@ interface Bot {
   yaw: number;
   yawTarget: number;
   walkPhase: number;
+  /** index of the last footfall, so each is reported once */
+  stepK: number;
+  wasMoving: boolean;
   agent: SceneAgent;
   fade: number; // 0..1
   removing: boolean;
@@ -94,6 +103,10 @@ export class OfficeScene {
   private spriteQuad = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0); // origin at bottom-centre
   private offLayout: () => void;
   onViewChange?: (v: CameraView) => void;
+  /** a robot's foot lands while walking */
+  onStep?: (id: string, at: Spatial) => void;
+  /** a robot stops after a walk; propId is the prop it came to ('' when it stayed put) */
+  onArrive?: (id: string, propId: string, at: Spatial) => void;
   /** ?helper overlay: an element in room-px coordinates that the scene keeps aligned with the camera */
   overlay: HTMLElement | null = null;
 
@@ -252,6 +265,8 @@ export class OfficeScene {
       yaw: 0,
       yawTarget: 0,
       walkPhase: 0,
+      stepK: -1,
+      wasMoving: false,
       agent: a,
       fade: 0,
       removing: false,
@@ -295,6 +310,15 @@ export class OfficeScene {
       const f = bot.target.face;
       bot.yawTarget = f ? yawFor(f[0] - bot.pos[0], f[1] - bot.pos[1]) : 0;
     }
+    // sound: a footfall each time the legs are at their widest (the body bob is lowest there)
+    if (moving) {
+      const k = Math.floor((bot.walkPhase - Math.PI / 2) / Math.PI);
+      if (k !== bot.stepK) {
+        bot.stepK = k;
+        if (bot.fade > 0.4) this.onStep?.(bot.id, this.spatialAt(bot.pos));
+      }
+    } else if (bot.wasMoving && bot.fade > 0.4) this.onArrive?.(bot.id, bot.target.propId, this.spatialAt(bot.pos));
+    bot.wasMoving = moving;
     // turn smoothly (shortest way round)
     let dy = bot.yawTarget - bot.yaw;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
@@ -416,6 +440,20 @@ export class OfficeScene {
     this.following = follow ? id : null;
     this.userMoved = true;
     this.dirty = true;
+  }
+
+  /** Where a robot is in the stereo field; null when it isn't in the scene. */
+  spatial(id: string): Spatial | null {
+    const b = this.bots.get(id);
+    return b ? this.spatialAt(b.pos) : null;
+  }
+
+  private spatialAt([x, y]: Pt): Spatial {
+    const [sx, sy] = this.toScreen(x, y);
+    const nx = (sx - this.w / 2) / (this.w / 2);
+    const ny = (sy - this.h / 2) / (this.h / 2);
+    const d = Math.hypot(nx, ny * 0.7);
+    return { pan: Math.max(-0.85, Math.min(0.85, nx * 0.7)), gain: Math.max(0.12, Math.min(1, 1.2 - d * 0.55)) };
   }
 
   /** Whether a robot is mid-walk; null when it isn't in the scene (yet). */

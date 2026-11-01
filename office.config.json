@@ -1,0 +1,26 @@
+{
+  "server": {
+    "port": 3334
+  },
+  "desks": 8,
+  "timers": {
+    "idleAfterSec": 20,
+    "breakAfterSec": 45,
+    "chargeAfterSec": 180,
+    "staleAfterSec": 600,
+    "doneHoldSec": 3
+  },
+  "roles": [
+    { "role": "qa", "match": "test|qa|debug|review" },
+    { "role": "devops", "match": "deploy|ci|infra|devops" },
+    { "role": "designer", "match": "ui|design|frontend" },
+    { "role": "researcher", "match": "^explore$" },
+    { "role": "architect", "match": "^plan$" },
+    { "role": "engineer", "match": "general-purpose" }
+  ],
+  "ai": {
+    "enabled": false,
+    "model": "haiku",
+    "contextEvents": 30
+  }
+}

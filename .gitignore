@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.data/
+*.log
+.DS_Store
+# Sketchfab download and other large sources stay local
+Assets/source/
+# DDEV runtime files
+.ddev/.env
+.ddev/.homeadditions
+.ddev/.global_commands
+.ddev/db_snapshots
+
+# older copies of the plans; the current ones live in docs/
+Claude outputs/

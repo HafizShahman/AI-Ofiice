@@ -1,0 +1,214 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://ai-office.ddev.site:3334/hook",
+            "timeout": 1,
+            "headers": {
+              "Authorization": "Bearer 3760d9adb074fe89f76c70d0fd23fd811dc93c857dcf1ead",
+              "X-AI-Office": "1"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

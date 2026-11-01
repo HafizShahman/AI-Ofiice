@@ -11,7 +11,15 @@ import json
 import math
 from pathlib import Path
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    raise SystemExit(
+        'build-art needs Pillow for this python3. Install it with ONE of:\n'
+        '  python3 -m pip install --user pillow      # Apple / python.org Python\n'
+        '  brew install pillow                       # Homebrew Python ("externally-managed-environment" error)\n'
+        'The built WebPs are committed, so you only need this after changing Assets/.'
+    )
 
 ROOT = Path(__file__).resolve().parent.parent
 PROPS = ROOT / 'apps/web/src/scene/props.json'

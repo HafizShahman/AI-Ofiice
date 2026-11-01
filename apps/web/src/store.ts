@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentState, AiState, ChatMessage, OfficeEvent, ServerMessage } from '@ai-office/shared';
+import type { AgentState, AiState, Approval, ChatMessage, OfficeEvent, ServerMessage } from '@ai-office/shared';
 
 export type Connection = 'connecting' | 'open' | 'closed';
 
@@ -17,6 +17,10 @@ interface OfficeStore {
   chatOpen: boolean;
   ai: AiState;
   doneToday: number;
+  approvalsOn: boolean;
+  approvalWaitSec: number;
+  /** open permission requests by id */
+  approvals: Record<string, Approval>;
   /** side-panel channel: "activity", "office" or "dm:<agentId>" */
   channel: string;
   chat: Record<string, ChatMessage[]>;
@@ -47,6 +51,9 @@ export const useOffice = create<OfficeStore>((set) => ({
   chatOpen: true,
   ai: { enabled: false, model: 'haiku', available: null },
   doneToday: 0,
+  approvalsOn: false,
+  approvalWaitSec: 45,
+  approvals: {},
   channel: 'office',
   chat: {},
   typing: {},
@@ -70,7 +77,7 @@ export const useOffice = create<OfficeStore>((set) => ({
   // one store update per server batch, so event bursts don't cause a render per event
   apply: (msgs) =>
     set((s) => {
-      let { agents, events, sim, names, ai, doneToday, chat, typing, unread } = s;
+      let { agents, events, sim, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec } = s;
       let reload = false;
       for (const m of msgs) {
         if (m.type === 'snapshot') {
@@ -80,6 +87,9 @@ export const useOffice = create<OfficeStore>((set) => ({
           sim = m.state.sim;
           ai = m.state.ai;
           doneToday = m.state.doneToday;
+          approvalsOn = m.state.approvals.enabled;
+          approvalWaitSec = m.state.approvals.waitSec;
+          approvals = Object.fromEntries(m.state.approvals.pending.map((a) => [a.id, a]));
           chat = {}; // (re)connected: history is re-read from the server
           typing = {};
           reload = true;
@@ -96,6 +106,13 @@ export const useOffice = create<OfficeStore>((set) => ({
           sim = m.on;
         } else if (m.type === 'ai') {
           ai = m.ai;
+        } else if (m.type === 'approvals') {
+          approvalsOn = m.enabled;
+        } else if (m.type === 'approval') {
+          approvals = { ...approvals, [m.approval.id]: m.approval };
+        } else if (m.type === 'approval.done') {
+          const { [m.id]: _done, ...rest } = approvals;
+          approvals = rest;
         } else if (m.type === 'typing') {
           typing = { ...typing, [m.channel]: m.on };
         } else if (m.type === 'chat.clear') {
@@ -110,7 +127,7 @@ export const useOffice = create<OfficeStore>((set) => ({
       }
       const selected = s.selected && !agents[s.selected] && s.selected !== 'ceo' ? null : s.selected;
       if (reload && s.channel !== 'activity') queueMicrotask(() => void loadChannel(s.channel));
-      return { agents, events, sim, selected, names, ai, doneToday, chat, typing, unread };
+      return { agents, events, sim, selected, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec };
     }),
 }));
 
@@ -165,4 +182,12 @@ export async function sendChat(channel: string, body: string): Promise<void> {
 
 export async function setAi(on: boolean): Promise<void> {
   await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify({ on }) });
+}
+
+export async function setApprovals(enabled: boolean): Promise<void> {
+  await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ enabled }) });
+}
+
+export async function decideApproval(id: string, decision: 'allow' | 'deny' | 'terminal'): Promise<void> {
+  await fetch(`/api/approvals/${encodeURIComponent(id)}`, { ...JSON_POST, body: JSON.stringify({ decision }) });
 }

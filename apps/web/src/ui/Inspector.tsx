@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { activityLine, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
+import { ApprovalBox } from './Approval.tsx';
 import { ago, Avatar, clock, useNow, verb } from './util.tsx';
 
 const STATUS_LABEL = { working: 'Working', idle: 'Idle', blocked: 'Blocked', done: 'Done' } as const;
@@ -52,6 +53,11 @@ export function Inspector() {
           <span className={`truncate ${g === 'blocked' ? 'text-warning' : ''}`}>{activityLine(a)}</span>
           <span className="shrink-0 text-muted tabular-nums">{clock(now - a.statusSince)}</span>
         </div>
+        {g === 'blocked' && (
+          <div className="mt-2.5">
+            <ApprovalBox agentId={a.id} />
+          </div>
+        )}
       </div>
 
       {recent.length > 0 && (
@@ -90,33 +96,44 @@ export function Inspector() {
 
 export function BlockedToast() {
   const agents = useOffice((s) => s.agents);
-  const blocked = useMemo(() => Object.values(agents).filter((a) => a.status === 'blocked'), [agents]);
+  const approvals = useOffice((s) => s.approvals);
   const selected = useOffice((s) => s.selected);
+  // agents with a request you can answer here come first
+  const blocked = useMemo(() => {
+    const waiting = new Set(Object.values(approvals).map((x) => x.agentId));
+    return Object.values(agents)
+      .filter((a) => a.status === 'blocked')
+      .sort((a, b) => Number(waiting.has(b.id)) - Number(waiting.has(a.id)) || a.statusSince - b.statusSince);
+  }, [agents, approvals]);
   const first = blocked[0];
   if (!first) return null;
   return (
     <div
       data-ui
       role="alert"
-      className="absolute left-4 top-4 flex w-[320px] items-start gap-2.5 rounded-[10px] border border-warning/60 bg-surface p-3 shadow-[0_8px_24px_rgb(0_0_0/.45),0_0_14px_rgb(251_191_36/.2)]"
+      className="absolute left-4 top-4 flex w-[340px] flex-col gap-2.5 rounded-[10px] border border-warning/60 bg-surface p-3 shadow-[0_8px_24px_rgb(0_0_0/.45),0_0_14px_rgb(251_191_36/.2)]"
     >
-      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-warning/14 text-warning">
-        <Icon name="hand" size={16} />
-      </span>
-      <div className="min-w-0 flex-1 leading-snug">
-        <div className="text-[13px] font-semibold">
-          {first.name} needs permission{blocked.length > 1 ? ` (+${blocked.length - 1})` : ''}
+      <div className="flex items-start gap-2.5">
+        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-warning/14 text-warning">
+          <Icon name="hand" size={16} />
+        </span>
+        <div className="min-w-0 flex-1 leading-snug">
+          <div className="text-[13px] font-semibold">
+            {first.name} needs permission{blocked.length > 1 ? ` (+${blocked.length - 1})` : ''}
+          </div>
+          <div className="truncate font-mono text-[12px] text-muted">
+            {first.tool ?? 'tool'}
+            {first.summary ? ` → ${first.summary}` : ''} · {first.project}
+          </div>
         </div>
-        <div className="truncate font-mono text-[12px] text-muted">
-          {first.tool ?? 'tool'}
-          {first.summary ? ` → ${first.summary}` : ''}
-        </div>
+        {selected !== first.id && (
+          <button className="h-7 shrink-0 rounded-md border border-warning/50 px-2.5 text-[12px] text-warning hover:bg-warning/10" onClick={() => useOffice.getState().select(first.id)}>
+            Show
+          </button>
+        )}
       </div>
-      {selected !== first.id && (
-        <button className="h-7 shrink-0 rounded-md border border-warning/50 px-2.5 text-[12px] text-warning hover:bg-warning/10" onClick={() => useOffice.getState().select(first.id)}>
-          Show
-        </button>
-      )}
+      {/* the inspector carries the buttons while this agent is selected */}
+      {selected !== first.id && <ApprovalBox agentId={first.id} tone="toast" />}
     </div>
   );
 }

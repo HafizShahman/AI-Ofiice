@@ -46,6 +46,11 @@ function token() {
   return readFileSync(path, 'utf8').trim();
 }
 
+// "Approve from the office" (opt-in in the app) holds PermissionRequest calls open for up to
+// approvals.waitSec, so that one hook gets a little longer than that; every other hook gets 1 s.
+const officeConfig = JSON.parse(readFileSync(join(ROOT, 'office.config.json'), 'utf8'));
+const permissionTimeout = (officeConfig.approvals?.waitSec ?? 45) + 10;
+
 const settings = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {};
 if (existsSync(settingsPath)) {
   const backup = `${settingsPath}.bak-${new Date().toISOString().replace(/[:.]/g, '-')}`;
@@ -71,7 +76,7 @@ if (!flag('--remove')) {
     headers: { Authorization: useEnv ? 'Bearer $OFFICE_TOKEN' : `Bearer ${token()}`, [MARK]: '1' },
     ...(useEnv ? { allowedEnvVars: ['OFFICE_TOKEN'] } : {}),
   };
-  for (const ev of EVENTS) (settings.hooks[ev] ??= []).push({ hooks: [hook] });
+  for (const ev of EVENTS) (settings.hooks[ev] ??= []).push({ hooks: [ev === 'PermissionRequest' ? { ...hook, timeout: permissionTimeout } : hook] });
   console.log(`Installed ${EVENTS.length} AI Office hooks → ${url}`);
   if (useEnv) console.log(`Add to your shell profile:\n  export OFFICE_TOKEN=${token()}`);
 } else {

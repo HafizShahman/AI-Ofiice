@@ -29,10 +29,13 @@ Personal project (new build). A light, local-only **isometric sci-fi office** wh
   - AI is off by default; state is saved in `settings.ai_enabled` and pushed as `{type:'ai'}`. `available:false` = the command couldn't be run (e.g. the server runs in DDEV, where `claude` isn't installed: run `npm run dev` on the Mac for the Office Manager).
   - `/api/*` POSTs require `application/json` and a same-host Origin (blocks drive-by CSRF from other sites); the Vite proxy keeps the Host header for this.
   - Web: `ui/SidePanel.tsx` (channels, DMs with the agent's timeline merged in, composer with slash suggestions, typing indicator), `ui/Rich.tsx` (`code`, **bold**, agent names → select robot). Top-bar AI pill, inspector "Open DM", `/` focuses the composer.
+- **Approve from the office: built** (2026-11-01, opt-in, saved as `settings.approvals_enabled`). Toggle: "Approve from the office…" link on a blocked agent, or `/approvals on|off`. Server `approvals.ts` holds the HTTP request, replies `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"|"deny"}}}`, releases empty on timeout / "Terminal" / the agent moving on (any later tool, turn end, prompt or leave) / Claude Code closing the request. A request dropped within 3 s posts a hint to re-run install-hooks (the installer now gives PermissionRequest `waitSec + 10` s; other hooks 1 s). Allow/Deny unblocks the robot at once and posts a line to #office and the DM. The detail shown (`permissionDetail()`: Bash command ≤300 chars redacted, file path tail, URL host+path) is memory-only. Demo requests are answerable but change nothing. `/api/approvals` (toggle) and `/api/approvals/:id` (decide) use the same JSON + same-origin guard.
+  - **Untested against a real session:** whether Claude Code shows its terminal prompt while the hook is held, or only after the hook returns. Check it first; lower `approvals.waitSec` if the wait in the terminal is annoying.
+- **Fixed:** the idle "Claude is waiting for your input" notification no longer marks the agent blocked (uses `notification_type`, `permission_prompt` only).
 - **Next, in order:**
-  1. **P4:** wallboard (`?wallboard`), settings drawer, ⌘K palette, About/credits, browser notification on blocked.
+  1. **P4:** wallboard (`?wallboard`), settings drawer (AI, approvals, wait time, quality), ⌘K palette, About/credits, browser notification on blocked.
   2. Try the Office Manager under DDEV: install Claude Code in the web container and pass `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`), or keep it a local-only feature.
-  3. Draw calls (~7 per robot) and lazy-loading the helper if the bundle gets tight (250 KB gz now).
+  3. Draw calls (~7 per robot) and lazy-loading the helper if the bundle gets tight (251 KB gz now).
 
 ## Commands
 
@@ -57,7 +60,7 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
   - `index.ts`: Hono routes (`POST /hook`, `/api/state|events|health|sim|chat/:channel|ai`), WebSocket `/ws` (first a snapshot, then batched arrays every 50 ms), and the static web build
   - `hooks.ts`: normalise a hook payload into an `OfficeEvent`; redact
   - `state.ts`: the agent state machine (`arriving·working·blocked·idle·break·charging·done·leaving`), desk allocation, spot claiming from `props.json`, idle/break/charge timers (in `office.config.json`)
-  - `chat.ts` (channels, slash commands, pings) + `manager.ts` (the `claude -p` Office Manager)
+  - `chat.ts` (channels, slash commands, pings) + `manager.ts` (the `claude -p` Office Manager) + `approvals.ts` (opt-in Allow/Deny for permission prompts)
   - `roles.ts` (role regex in `office.config.json`), `db.ts` (node:sqlite at `.data/office.db`), `sim.ts`, `config.ts` (`HOST`, `PORT`, `DATA_DIR`, token in `.data/token`)
 - `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `office/Helper.tsx` = `?helper` layout editor, `ui/` = panels.
 - `apps/web/src/scene/props.json`: **single source of prop positions**, read by both server and web. Coordinates are **% of the 2400×1792 room image** (`Assets/room/bg-main-area.png`). `foot` is the bottom-centre anchor, `width` is a % of room width, `z` overrides draw order, and `spots` are where robots stand, `face` where they look, `nav` = walkable areas, obstacles and stairs.
@@ -65,7 +68,7 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
 
 ## Rules
 
-- **The hook endpoint must never affect a real session:** answer `200` with an empty body immediately and process afterwards. Never approve, deny or block anything.
+- **The hook endpoint must never affect a real session:** answer `200` with an empty body immediately and process afterwards. Never approve, deny or block anything on its own. The single, opt-in exception is "approve from the office" (`approvals.ts`): with it on **and** an office tab connected, a `PermissionRequest` is held (≤ `approvals.waitSec`) until the user clicks Allow / Deny / Terminal; otherwise it is released empty so Claude Code asks in the terminal.
 - **Privacy:** never store full `tool_input`. Keep only the tool name and a short redacted summary (`summarize()`/`redact()` in hooks.ts).
 - **Server TypeScript must be erasable syntax only:** no `enum`, `namespace` or constructor parameter properties. Use `.ts` extensions in relative imports, and `import type` for `@ai-office/shared`.
 - **Light:** no Docker services, Electron or extra databases. Keep the web bundle small (see the PLAN §14 budget).

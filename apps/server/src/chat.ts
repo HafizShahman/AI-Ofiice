@@ -15,11 +15,12 @@ export interface ChatDeps {
   push(msg: ServerMessage): void;
   sim: { running: boolean };
   setSim(on: boolean): void;
+  approvals: { enabled: boolean; setEnabled(on: boolean): void };
 }
 
 const HELP = [
   '`/status` office summary · `/agents` who is here · `/who <role or name>`',
-  '`/ai on` · `/ai off` the Office Manager · `/sim on|off` the demo · `/clear` this channel',
+  '`/ai on` · `/ai off` the Office Manager · `/approvals on|off` answer permission prompts here · `/sim on|off` the demo · `/clear` this channel',
   'Anything else is a question for the Office Manager (when AI is on).',
 ].join('\n');
 
@@ -154,6 +155,19 @@ export class Chat {
         const on = arg ? arg === 'on' : !this.deps.sim.running;
         this.deps.setSim(on);
         return this.system(channel, on ? 'Demo started.' : 'Demo stopped; demo agents are leaving.');
+      }
+      case 'approvals':
+      case 'approve': {
+        const ap = this.deps.approvals;
+        if (arg !== 'on' && arg !== 'off')
+          return this.system(channel, `Approving from the office is ${ap.enabled ? 'on' : 'off'}. Use \`/approvals on\` or \`/approvals off\`.`);
+        ap.setEnabled(arg === 'on');
+        return this.system(
+          channel,
+          arg === 'on'
+            ? 'Approving from the office is on: permission prompts wait here with Allow / Deny before going to the terminal. If you installed the hooks before this feature, re-run `npm run install-hooks` once.'
+            : 'Approving from the office is off: permission prompts go straight to the terminal.',
+        );
       }
       case 'ai': {
         if (arg !== 'on' && arg !== 'off') return this.system(channel, `The Office Manager is ${this.ai.enabled ? 'on' : 'off'} (${this.ai.model}). Use \`/ai on\` or \`/ai off\`.`);

@@ -8,7 +8,8 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
-import { normalize, type HookPayload } from './hooks.ts';
+import { normalize, permissionDetail, type HookPayload } from './hooks.ts';
+import { Approvals } from './approvals.ts';
 import { Office } from './state.ts';
 import { countEvents, pruneOld, recentEvents, saveEvent } from './db.ts';
 import { Sim } from './sim.ts';
@@ -43,7 +44,7 @@ const office = new Office({
     dirty.set(a.id, a);
     if (a.status === 'blocked' && lastStatus.get(a.id) !== 'blocked' && chat) {
       const what = a.tool ? ` · ${a.tool}${a.summary ? ` → ${a.summary}` : ''}` : '';
-      const line = `✋ ${a.name} needs permission${what}. Answer it in that agent's terminal.`;
+      const line = `✋ ${a.name} needs permission${what}. ${approvals.enabled ? 'Allow or deny it here, or in' : 'Answer it in'} that agent's terminal.`;
       const key = `${a.name}|${a.tool}|${a.summary}`;
       if (Date.now() - (pinged.get(key) ?? 0) > 5 * 60_000) chat.system('office', line, 'warn', a.id);
       pinged.set(key, Date.now());
@@ -57,23 +58,62 @@ const office = new Office({
   },
 });
 
+const approvals = new Approvals((m) => outbox.push(m));
+// once an agent moves on, a permission it was waiting on has been settled one way or another
+const SETTLES = new Set<OfficeEvent['kind']>(['tool_start', 'tool_end', 'tool_fail', 'turn_done', 'prompt', 'leave']);
+
+function apply(e: OfficeEvent) {
+  saveEvent(e);
+  office.apply(e);
+  outbox.push({ type: 'event', event: e });
+  if (SETTLES.has(e.kind)) approvals.clearAgent(e.agentId);
+}
+
+/** Hook payloads from the demo (real hooks go through POST /hook). */
 function ingest(p: HookPayload) {
   if (p.session_id && ownSessions.has(p.session_id)) return; // the Office Manager's own claude -p run
   const e = normalize(p);
   if (!e) return;
-  saveEvent(e);
-  office.apply(e);
-  outbox.push({ type: 'event', event: e });
+  apply(e);
+  if (approvals.enabled && p.hook_event_name === 'PermissionRequest' && e.sessionId.startsWith('sim-')) approvals.holdSim(e, permissionDetail(e.tool ?? '', p.tool_input ?? {}));
 }
 
 const sim = new Sim(ingest);
-chat = new Chat({ office, push: (m) => outbox.push(m), sim, setSim: (on) => setSim(on) });
+chat = new Chat({ office, push: (m) => outbox.push(m), sim, setSim: (on) => setSim(on), approvals });
+
+let warnedShort = 0;
+approvals.onShortHookTimeout = () => {
+  if (Date.now() - warnedShort < 10 * 60_000) return;
+  warnedShort = Date.now();
+  chat!.system(
+    'office',
+    `Claude Code gave up on the permission hook after about a second, so "approve from the office" can't hold the request. Re-run \`npm run install-hooks\` (same options as before): it gives the PermissionRequest hook ${approvals.waitMs / 1000 + 10} s.`,
+    'warn',
+  );
+};
+
+approvals.onDone = (a, outcome) => {
+  if (outcome === 'allow' || outcome === 'deny') office.resume(a.agentId);
+  const who = office.agents.get(a.agentId)?.name ?? 'The agent';
+  const what = `${a.tool} \`${a.detail.replace(/`/g, "'")}\``;
+  const demo = a.sim ? ' (demo: nothing real was approved)' : '';
+  const line =
+    outcome === 'allow' ? `✓ You allowed ${what} for ${who} from the office${demo}.`
+    : outcome === 'deny' ? `✕ You denied ${what} for ${who} from the office${demo}.`
+    : outcome === 'terminal' ? `${who}'s request went back to its terminal.`
+    : outcome === 'timeout' ? `No answer in ${approvals.waitMs / 1000}s: ${who}'s request went back to its terminal.`
+    : null;
+  if (!line) return;
+  chat!.system(`dm:${a.agentId}`, line, outcome === 'allow' ? 'ok' : outcome === 'deny' ? 'fail' : 'info', a.agentId);
+  if (outcome === 'allow' || outcome === 'deny') chat!.system('office', line, outcome === 'allow' ? 'ok' : 'fail', a.agentId);
+};
 
 const snapshot = () => ({
   agents: office.snapshot(),
   events: recentEvents(100),
   sim: sim.running,
   ai: chat!.ai,
+  approvals: approvals.state(),
   doneToday: countEvents('turn_done', midnight()),
 });
 
@@ -107,8 +147,10 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-// Claude Code HTTP hooks post here. Always answer 200 with an empty body at once:
-// the office must never slow down, block, approve or deny anything in a real session.
+// Claude Code HTTP hooks post here. Answer 200 with an empty body at once: the office never
+// slows down, blocks, approves or denies anything in a real session. The one exception is opt-in:
+// with "approve from the office" on, a PermissionRequest is held until you click Allow / Deny
+// (or it times out and Claude Code asks in the terminal as usual).
 app.post('/hook', async (c) => {
   if (!authorised(c.req.header('authorization'))) return c.body(null, 401);
   let payload: HookPayload | null = null;
@@ -117,7 +159,18 @@ app.post('/hook', async (c) => {
   } catch {
     /* ignore malformed bodies */
   }
-  if (payload) setImmediate(() => ingest(payload));
+  if (!payload) return c.body(null, 200);
+  const p = payload;
+  // only hold it when an office tab is open to answer it; otherwise the terminal asks at once
+  if (approvals.enabled && clients.size > 0 && p.hook_event_name === 'PermissionRequest' && !(p.session_id && ownSessions.has(p.session_id))) {
+    const e = normalize(p);
+    if (e) {
+      apply(e);
+      const decision = await approvals.hold(e, permissionDetail(e.tool ?? '', p.tool_input ?? {}), c.req.raw.signal);
+      return decision ? c.json(decision) : c.body(null, 200);
+    }
+  }
+  setImmediate(() => ingest(p));
   return c.body(null, 200);
 });
 
@@ -148,6 +201,19 @@ app.post('/api/chat/:channel', async (c) => {
   if (!validChannel(channel) || typeof body.body !== 'string') return c.body(null, 400);
   void chat!.handle(channel, body.body); // the reply arrives over the WebSocket
   return c.body(null, 202);
+});
+
+app.post('/api/approvals', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { enabled?: boolean };
+  approvals.setEnabled(body.enabled ?? !approvals.enabled);
+  return c.json(approvals.state());
+});
+
+app.post('/api/approvals/:id', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { decision?: string };
+  const d = body.decision;
+  if (d !== 'allow' && d !== 'deny' && d !== 'terminal') return c.body(null, 400);
+  return approvals.decide(c.req.param('id'), d) ? c.body(null, 204) : c.body(null, 404);
 });
 
 app.post('/api/ai', async (c) => {

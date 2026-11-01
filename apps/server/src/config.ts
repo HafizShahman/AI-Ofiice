@@ -10,6 +10,7 @@ interface FileConfig {
   desks: number;
   timers: { idleAfterSec: number; breakAfterSec: number; chargeAfterSec: number; staleAfterSec: number; doneHoldSec: number };
   roles: { role: string; match: string }[];
+  approvals?: { waitSec?: number };
   ai: { enabled: boolean; model: string; contextEvents: number; command?: string; timeoutSec?: number };
 }
 

@@ -12,6 +12,8 @@ export interface HookPayload {
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   message?: string;
+  /** Notification only: permission_prompt, idle_prompt, auth_success, elicitation_dialog… */
+  notification_type?: string;
   [key: string]: unknown;
 }
 
@@ -40,8 +42,12 @@ export function normalize(p: HookPayload): OfficeEvent | null {
   // the harness's internal hand-back call at the end of every subagent; not a real tool
   if (p.tool_name === 'SubagentHandback') return null;
 
-  // "Claude needs your permission…" notifications also mean the agent is waiting on you.
-  if (kind === 'notify' && /permission|approve|waiting for your input/i.test(String(p.message ?? ''))) kind = 'blocked';
+  // A permission prompt notification also means the agent is waiting on you. "Claude is waiting
+  // for your input" (idle_prompt) does NOT: the turn is over and nothing needs approving.
+  if (kind === 'notify') {
+    const t = p.notification_type;
+    if (t ? t === 'permission_prompt' : /needs your permission|permission to use/i.test(String(p.message ?? ''))) kind = 'blocked';
+  }
 
   const isSub = Boolean(p.agent_id);
   const cwd = p.cwd ?? '';
@@ -72,6 +78,33 @@ export function redact(text: string, max = 60): string {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
+}
+
+/**
+ * A longer, still-redacted line for a pending permission (shown on the Allow / Deny buttons so you
+ * can see what you're approving). Kept in memory only while the request is open; never stored.
+ */
+export function permissionDetail(tool: string, input: Record<string, unknown>): string {
+  const file = str(input.file_path) || str(input.notebook_path) || str(input.path);
+  switch (tool) {
+    case 'Bash':
+      return redact(str(input.command), 300);
+    case 'Edit':
+    case 'MultiEdit':
+    case 'Write':
+    case 'NotebookEdit':
+    case 'Read':
+      return file ? redact(file.split('/').slice(-3).join('/'), 120) : tool;
+    case 'WebFetch':
+      try {
+        const u = new URL(str(input.url));
+        return redact(u.host + u.pathname, 120);
+      } catch {
+        return 'a web page';
+      }
+    default:
+      return summarize(tool, input) || tool;
+  }
 }
 
 /** One short, safe line about a tool call: file basename, truncated command, host — never the full input. */

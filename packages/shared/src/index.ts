@@ -107,6 +107,29 @@ export interface StateSnapshot {
   ai: AiState;
   /** turn_done events since local midnight */
   doneToday: number;
+  approvals: ApprovalsState;
+}
+
+/** A permission request held open so you can answer it from the office (opt-in). */
+export interface Approval {
+  id: string;
+  agentId: string;
+  tool: string;
+  /** redacted: the command, file or host being asked about (memory only, never stored) */
+  detail: string;
+  ts: number;
+  expiresAt: number;
+  /** a demo request: answering it changes nothing real */
+  sim: boolean;
+}
+
+export type ApprovalOutcome = 'allow' | 'deny' | 'terminal' | 'timeout' | 'answered';
+
+export interface ApprovalsState {
+  /** answer permission prompts from the office */
+  enabled: boolean;
+  waitSec: number;
+  pending: Approval[];
 }
 
 /** The Office Manager AI (runs `claude -p` on the server's machine). */
@@ -144,4 +167,7 @@ export type ServerMessage =
   | { type: 'chat'; message: ChatMessage }
   | { type: 'chat.clear'; channel: string }
   | { type: 'typing'; channel: string; on: boolean }
-  | { type: 'ai'; ai: AiState };
+  | { type: 'ai'; ai: AiState }
+  | { type: 'approvals'; enabled: boolean }
+  | { type: 'approval'; approval: Approval }
+  | { type: 'approval.done'; id: string; outcome: ApprovalOutcome };

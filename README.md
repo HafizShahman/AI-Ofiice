@@ -63,13 +63,20 @@ office.config.json  desks, idle/break/charge timers, role rules, AI settings
 - **Mouse:** drag to pan, wheel to zoom, click a robot to inspect it, double-click to follow it.
 - **Keys:** `[` `]` previous/next agent · `Shift+F` follow · `Esc` deselect · `+` `−` zoom · `0` reset view · `C` side panel.
 - **URL:** `?agent=<id>` selects an agent · `?helper` layout editor (drag spots, props, walkable areas; Save writes props.json under `npm run dev`) · `?debug` raw state · `?parts` colours the robot's animated segments · `?pose=wave` forces a pose.
-- **Chat:** `/` focuses the composer. Slash commands are free: `/status`, `/agents`, `/who <role>`, `/ai on|off`, `/sim`, `/clear`, `/help`.
+- **Chat:** `/` focuses the composer. Slash commands are free: `/status`, `/agents`, `/who <role>`, `/ai on|off`, `/approvals on|off`, `/sim`, `/clear`, `/help`.
 
 ## The Office Manager (AI)
 
 Off by default. Turn it on with the **AI** pill in the top bar or `/ai on`. Each question runs one `claude -p --model haiku` call **on the machine running the office server**, using your Claude Code login. It gets only the office state (agents, their recent tool names and the short redacted summaries, recent chat), no tools, no hooks and no MCP servers, and nothing is saved by Claude Code. In a robot's DM it answers as that agent, from that agent's events.
 
 Under DDEV the server runs inside the container, where `claude` isn't installed, so the AI shows as unavailable. Run `npm run dev` on your machine to use it (or point `ai.command` in `office.config.json` at another binary).
+
+## Answering permission prompts from the office
+
+Off by default. When a robot raises its hand, click **Approve from the office…** (or type `/approvals on`). From then on, while an office tab is open, a permission request waits in the office with **Allow**, **Deny** and **Terminal** (send it back to the terminal now). If you don't answer within `approvals.waitSec` (45 s, in `office.config.json`), Claude Code asks in the terminal as usual.
+
+- Re-run `npm run install-hooks` (with your usual options) once after updating: the permission hook needs a longer timeout than the other hooks.
+- **Allow really runs the command or edit.** The office shows what is being asked (the command, file or host) before you click.
 
 ## Credits
 

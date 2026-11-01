@@ -36,7 +36,7 @@ const SCRIPT: Step[] = [
   [900, { hook_event_name: 'PostToolUseFailure', session_id: S2, cwd: C2, tool_name: 'Bash', tool_input: { command: 'npm test' } }],
   ...tool(S2, C2, 'Edit', { file_path: `${C2}/apps/server/src/state.ts` }),
   ...tool(S1, C1, 'Write', { file_path: `${C1}/src/components/TaskList.tsx` }),
-  [4000, { hook_event_name: 'PostToolUse', session_id: S1, cwd: C1, tool_name: 'WebFetch', tool_input: { url: 'https://docs.ddev.com/en/stable/' }, agent_id: RS[0], agent_type: RS[1] }],
+  [9000, { hook_event_name: 'PostToolUse', session_id: S1, cwd: C1, tool_name: 'WebFetch', tool_input: { url: 'https://docs.ddev.com/en/stable/' }, agent_id: RS[0], agent_type: RS[1] }],
   ...tool(S1, C1, 'WebFetch', { url: 'https://docs.ddev.com/en/stable/' }, RS),
   [800, { hook_event_name: 'SubagentStop', session_id: S1, cwd: C1, agent_id: RS[0], agent_type: RS[1] }],
   ...tool(S2, C2, 'Bash', { command: 'npm test' }),

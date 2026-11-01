@@ -124,6 +124,12 @@ export class Office {
     }
   }
 
+  /** You answered its permission from the office: back to work without waiting for the next hook. */
+  resume(id: string): void {
+    const a = this.agents.get(id);
+    if (a?.status === 'blocked') this.set(a, 'working', planFor(a.tool, a.role), Date.now());
+  }
+
   private liveChildren(id: string): number {
     return [...this.agents.values()].filter((x) => x.parentId === id && x.status !== 'leaving').length;
   }

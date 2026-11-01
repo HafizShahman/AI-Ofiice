@@ -4,6 +4,7 @@ import { activityLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/la
 import { sendChat, setAi, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { Rich } from './Rich.tsx';
+import { ApprovalBox } from './Approval.tsx';
 import { Avatar, describe, timeOfDay, useAgentList, verb } from './util.tsx';
 
 const TONE = {
@@ -105,6 +106,14 @@ export function SidePanel() {
         </header>
 
         {channel === 'activity' ? <ActivityFeed /> : <Conversation channel={channel} agent={dmAgent} />}
+        {dmAgent?.status === 'blocked' && (
+          <div className="shrink-0 border-t border-warning/40 bg-warning/5 px-3 py-2.5">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-medium text-warning">
+              <Icon name="hand" size={13} /> {dmAgent.name} needs permission
+            </div>
+            <ApprovalBox agentId={dmAgent.id} />
+          </div>
+        )}
         {channel !== 'activity' && <Composer channel={channel} agent={dmAgent} />}
       </section>
     </aside>

@@ -5,6 +5,7 @@ import { activityLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/la
 import { useOffice } from '../store.ts';
 import { Icon } from '../ui/icons.tsx';
 import { Helper } from './Helper.tsx';
+import { useCeoRounds } from './useCeoRounds.ts';
 
 const HELPER = new URLSearchParams(location.search).has('helper');
 
@@ -13,7 +14,7 @@ export const sceneRef: { current: OfficeScene | null } = { current: null };
 /** Overhead tag elements by agent id; the scene moves them every frame. */
 const tagEls = new Map<string, HTMLElement>();
 
-const CEO: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: 'ceo-desk', status: 'idle', activity: 'idle' };
+const ceoWalking = () => sceneRef.current?.isWalking('ceo') ?? null;
 
 export function OfficeView({ children }: { children?: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -36,12 +37,14 @@ export function OfficeView({ children }: { children?: ReactNode }) {
     };
   }, []);
 
+  const ceo = useCeoRounds(ceoWalking);
   useEffect(() => {
+    const ceoAgent: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: ceo.spot, status: 'idle', activity: ceo.activity };
     sceneRef.current?.setAgents([
-      CEO,
+      ceoAgent,
       ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], spot: a.spot, status: a.status, activity: a.activity })),
     ]);
-  }, [list]);
+  }, [list, ceo]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
@@ -116,7 +119,7 @@ export function OfficeView({ children }: { children?: ReactNode }) {
 
       {/* overhead tags, positioned by the scene every frame */}
       <div className="pointer-events-none absolute inset-0">
-        <Tag id="ceo" name="You" sub="CEO" line="Watching" color={ROLE_COLOR.ceo} />
+        <Tag id="ceo" name="You" sub="CEO" line={ceo.line} color={ROLE_COLOR.ceo} />
         {list.map((a) => (
           <AgentTag key={a.id} a={a} selected={a.id === selected} />
         ))}

@@ -418,6 +418,12 @@ export class OfficeScene {
     this.dirty = true;
   }
 
+  /** Whether a robot is mid-walk; null when it isn't in the scene (yet). */
+  isWalking(id: string): boolean | null {
+    const b = this.bots.get(id);
+    return b ? b.path.length > 0 : null;
+  }
+
   get followingId(): string | null {
     return this.following;
   }

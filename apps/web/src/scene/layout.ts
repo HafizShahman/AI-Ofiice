@@ -168,6 +168,9 @@ export const STATUS_COLOR: Record<StatusGroup, string> = {
   done: '#34D399',
 };
 
+/** Blocked on an AskUserQuestion: a question for you rather than a permission to grant. */
+export const asking = (a: { tool?: string }) => a.tool === 'AskUserQuestion';
+
 /** One short line for tags and the roster. */
 export function activityLine(a: AgentState): string {
   const s = a.summary;
@@ -187,7 +190,7 @@ export function activityLine(a: AgentState): string {
     case 'thinking':
       return 'Thinking…';
     case 'blocked':
-      return `Needs permission${a.tool ? ` · ${a.tool}` : ''}`;
+      return asking(a) ? 'Has a question' : `Needs permission${a.tool ? ` · ${a.tool}` : ''}`;
     case 'coffee':
       return 'Coffee break';
     case 'lounge':

@@ -19,7 +19,7 @@
     { "role": "engineer", "match": "general-purpose" }
   ],
   "approvals": {
-    "_note": "Answer permission prompts from the office (off by default; toggle in the app, saved). A request is held open this long, then falls back to the terminal. The PermissionRequest hook's own timeout is set a few seconds longer by install-hooks.",
+    "_note": "Answer permission prompts and AskUserQuestion questions from the office (off by default; toggle in the app, saved). A request is held open this long, then falls back to the terminal. The PermissionRequest hook's own timeout, and that of the held AskUserQuestion hook, is set a few seconds longer by install-hooks.",
     "waitSec": 45
   },
   "ai": {

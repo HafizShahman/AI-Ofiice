@@ -121,9 +121,21 @@ export interface Approval {
   expiresAt: number;
   /** a demo request: answering it changes nothing real */
   sim: boolean;
+  /** AskUserQuestion: what is being asked, to answer from the office (memory only, never stored) */
+  questions?: AskQuestion[];
 }
 
-export type ApprovalOutcome = 'allow' | 'deny' | 'terminal' | 'timeout' | 'answered';
+/** One question of an AskUserQuestion call, tidied for display. Answers go back by option index. */
+export interface AskQuestion {
+  question: string;
+  /** short chip label (Claude Code limits it to 12 characters) */
+  header: string;
+  multiSelect: boolean;
+  options: { label: string; description?: string }[];
+}
+
+/** 'replied' = a question was answered from the office; 'answered' = settled elsewhere (e.g. in the terminal). */
+export type ApprovalOutcome = 'allow' | 'deny' | 'replied' | 'terminal' | 'timeout' | 'answered';
 
 export interface ApprovalsState {
   /** answer permission prompts from the office */

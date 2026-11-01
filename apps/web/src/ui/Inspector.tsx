@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { activityLine, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, asking, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { ApprovalBox } from './Approval.tsx';
@@ -22,7 +22,7 @@ export function Inspector() {
     <aside
       data-ui
       aria-label={`${a.name} details`}
-      className="absolute right-4 top-4 w-[320px] overflow-hidden rounded-[10px] border border-border bg-surface/97 shadow-[0_8px_24px_rgb(0_0_0/.45)]"
+      className="absolute right-4 top-4 z-[2000] w-[320px] overflow-hidden rounded-[10px] border border-border bg-surface/97 shadow-[0_8px_24px_rgb(0_0_0/.45)]"
     >
       <header className="flex items-start gap-3 border-b border-border p-3.5">
         <Avatar a={a} size={32} />
@@ -111,7 +111,7 @@ export function BlockedToast() {
     <div
       data-ui
       role="alert"
-      className="absolute left-4 top-4 flex w-[340px] flex-col gap-2.5 rounded-[10px] border border-warning/60 bg-surface p-3 shadow-[0_8px_24px_rgb(0_0_0/.45),0_0_14px_rgb(251_191_36/.2)]"
+      className="absolute left-4 top-4 z-[2000] flex max-h-[calc(100%-2rem)] w-[340px] flex-col gap-2.5 overflow-y-auto rounded-[10px] border border-warning/60 bg-surface p-3 shadow-[0_8px_24px_rgb(0_0_0/.45),0_0_14px_rgb(251_191_36/.2)]"
     >
       <div className="flex items-start gap-2.5">
         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-warning/14 text-warning">
@@ -119,11 +119,11 @@ export function BlockedToast() {
         </span>
         <div className="min-w-0 flex-1 leading-snug">
           <div className="text-[13px] font-semibold">
-            {first.name} needs permission{blocked.length > 1 ? ` (+${blocked.length - 1})` : ''}
+            {first.name} {asking(first) ? 'has a question' : 'needs permission'}
+            {blocked.length > 1 ? ` (+${blocked.length - 1})` : ''}
           </div>
           <div className="truncate font-mono text-[12px] text-muted">
-            {first.tool ?? 'tool'}
-            {first.summary ? ` → ${first.summary}` : ''} · {first.project}
+            {asking(first) ? first.project : `${first.tool ?? 'tool'}${first.summary ? ` → ${first.summary}` : ''} · ${first.project}`}
           </div>
         </div>
         {selected !== first.id && (

@@ -48,6 +48,10 @@ function token() {
 
 // "Approve from the office" (opt-in in the app) holds PermissionRequest calls open for up to
 // approvals.waitSec, so that one hook gets a little longer than that; every other hook gets 1 s.
+// Questions (AskUserQuestion) are answered through a second PreToolUse hook that matches only that
+// tool and gets the same longer timeout: the plain PreToolUse hook still records the event at once,
+// and the header below tells the server which copy is the one to hold.
+const HOLD = 'X-AI-Office-Hold';
 const officeConfig = JSON.parse(readFileSync(join(ROOT, 'office.config.json'), 'utf8'));
 const permissionTimeout = (officeConfig.approvals?.waitSec ?? 45) + 10;
 
@@ -77,7 +81,8 @@ if (!flag('--remove')) {
     ...(useEnv ? { allowedEnvVars: ['OFFICE_TOKEN'] } : {}),
   };
   for (const ev of EVENTS) (settings.hooks[ev] ??= []).push({ hooks: [ev === 'PermissionRequest' ? { ...hook, timeout: permissionTimeout } : hook] });
-  console.log(`Installed ${EVENTS.length} AI Office hooks → ${url}`);
+  settings.hooks.PreToolUse.push({ matcher: 'AskUserQuestion', hooks: [{ ...hook, timeout: permissionTimeout, headers: { ...hook.headers, [HOLD]: '1' } }] });
+  console.log(`Installed ${EVENTS.length} AI Office hooks (+1 held hook for AskUserQuestion) → ${url}`);
   if (useEnv) console.log(`Add to your shell profile:\n  export OFFICE_TOKEN=${token()}`);
 } else {
   console.log('Removed the AI Office hooks.');

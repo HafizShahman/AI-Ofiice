@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentState, ChatMessage, OfficeEvent } from '@ai-office/shared';
-import { activityLine, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, asking, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { sendChat, setAi, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { Rich } from './Rich.tsx';
@@ -109,7 +109,7 @@ export function SidePanel() {
         {dmAgent?.status === 'blocked' && (
           <div className="shrink-0 border-t border-warning/40 bg-warning/5 px-3 py-2.5">
             <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-medium text-warning">
-              <Icon name="hand" size={13} /> {dmAgent.name} needs permission
+              <Icon name="hand" size={13} /> {dmAgent.name} {asking(dmAgent) ? 'has a question' : 'needs permission'}
             </div>
             <ApprovalBox agentId={dmAgent.id} />
           </div>

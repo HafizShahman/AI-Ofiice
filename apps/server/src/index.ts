@@ -8,7 +8,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
-import { normalize, permissionDetail, type HookPayload } from './hooks.ts';
+import { askQuestions, normalize, permissionDetail, redact, type HookPayload } from './hooks.ts';
 import { Approvals } from './approvals.ts';
 import { Office } from './state.ts';
 import { countEvents, pruneOld, recentEvents, saveEvent } from './db.ts';
@@ -44,7 +44,10 @@ const office = new Office({
     dirty.set(a.id, a);
     if (a.status === 'blocked' && lastStatus.get(a.id) !== 'blocked' && chat) {
       const what = a.tool ? ` · ${a.tool}${a.summary ? ` → ${a.summary}` : ''}` : '';
-      const line = `✋ ${a.name} needs permission${what}. ${approvals.enabled ? 'Allow or deny it here, or in' : 'Answer it in'} that agent's terminal.`;
+      const line =
+        a.tool === 'AskUserQuestion'
+          ? `❓ ${a.name} has a question for you${a.summary ? `: ${a.summary}` : ''}. ${approvals.enabled ? 'Answer it here, or in' : 'Answer it in'} that agent's terminal.`
+          : `✋ ${a.name} needs permission${what}. ${approvals.enabled ? 'Allow or deny it here, or in' : 'Answer it in'} that agent's terminal.`;
       const key = `${a.name}|${a.tool}|${a.summary}`;
       if (Date.now() - (pinged.get(key) ?? 0) > 5 * 60_000) chat.system('office', line, 'warn', a.id);
       pinged.set(key, Date.now());
@@ -82,30 +85,34 @@ const sim = new Sim(ingest);
 chat = new Chat({ office, push: (m) => outbox.push(m), sim, setSim: (on) => setSim(on), approvals });
 
 let warnedShort = 0;
-approvals.onShortHookTimeout = () => {
+approvals.onShortHookTimeout = (question) => {
   if (Date.now() - warnedShort < 10 * 60_000) return;
   warnedShort = Date.now();
   chat!.system(
     'office',
-    `Claude Code gave up on the permission hook after about a second, so "approve from the office" can't hold the request. Re-run \`npm run install-hooks\` (same options as before): it gives the PermissionRequest hook ${approvals.waitMs / 1000 + 10} s.`,
+    `Claude Code gave up on the ${question ? 'AskUserQuestion' : 'permission'} hook after about a second, so "approve from the office" can't hold the request. Re-run \`npm run install-hooks\` (same options as before): it gives that hook ${approvals.waitMs / 1000 + 10} s.`,
     'warn',
   );
 };
 
-approvals.onDone = (a, outcome) => {
-  if (outcome === 'allow' || outcome === 'deny') office.resume(a.agentId);
+approvals.onDone = (a, outcome, answers) => {
+  if (outcome === 'allow' || outcome === 'deny' || outcome === 'replied') office.resume(a.agentId);
   const who = office.agents.get(a.agentId)?.name ?? 'The agent';
   const what = `${a.tool} \`${a.detail.replace(/`/g, "'")}\``;
   const demo = a.sim ? ' (demo: nothing real was approved)' : '';
+  // only a short, redacted reply goes into the chat history
+  const reply = answers ? redact(Object.values(answers).join(' · '), 100).replace(/`/g, "'") : '';
   const line =
     outcome === 'allow' ? `✓ You allowed ${what} for ${who} from the office${demo}.`
     : outcome === 'deny' ? `✕ You denied ${what} for ${who} from the office${demo}.`
-    : outcome === 'terminal' ? `${who}'s request went back to its terminal.`
-    : outcome === 'timeout' ? `No answer in ${approvals.waitMs / 1000}s: ${who}'s request went back to its terminal.`
+    : outcome === 'replied' ? `✓ You answered ${who}'s question from the office: \`${reply}\`.`
+    : outcome === 'terminal' ? `${who}'s ${a.questions ? 'question' : 'request'} went back to its terminal.`
+    : outcome === 'timeout' ? `No answer in ${approvals.waitMs / 1000}s: ${who}'s ${a.questions ? 'question' : 'request'} went back to its terminal.`
     : null;
   if (!line) return;
-  chat!.system(`dm:${a.agentId}`, line, outcome === 'allow' ? 'ok' : outcome === 'deny' ? 'fail' : 'info', a.agentId);
-  if (outcome === 'allow' || outcome === 'deny') chat!.system('office', line, outcome === 'allow' ? 'ok' : 'fail', a.agentId);
+  const settled = outcome === 'allow' || outcome === 'deny' || outcome === 'replied';
+  chat!.system(`dm:${a.agentId}`, line, outcome === 'deny' ? 'fail' : settled ? 'ok' : 'info', a.agentId);
+  if (settled) chat!.system('office', line, outcome === 'deny' ? 'fail' : 'ok', a.agentId);
 };
 
 const snapshot = () => ({
@@ -130,6 +137,8 @@ function setSim(on: boolean) {
 
 const app = new Hono();
 const expected = Buffer.from(`Bearer ${config.token}`);
+/** Header on the held AskUserQuestion hook (scripts/install-hooks.mjs). */
+const HOLD_HEADER = 'x-ai-office-hold';
 
 function authorised(header: string | undefined): boolean {
   const got = Buffer.from(header ?? '');
@@ -162,13 +171,25 @@ app.post('/hook', async (c) => {
   if (!payload) return c.body(null, 200);
   const p = payload;
   // only hold it when an office tab is open to answer it; otherwise the terminal asks at once
-  if (approvals.enabled && clients.size > 0 && p.hook_event_name === 'PermissionRequest' && !(p.session_id && ownSessions.has(p.session_id))) {
+  const live = approvals.enabled && clients.size > 0 && !(p.session_id && ownSessions.has(p.session_id));
+  // A question is never approved or denied: it is answered, through the held PreToolUse hook below.
+  if (live && p.hook_event_name === 'PermissionRequest' && p.tool_name !== 'AskUserQuestion') {
     const e = normalize(p);
     if (e) {
       apply(e);
       const decision = await approvals.hold(e, permissionDetail(e.tool ?? '', p.tool_input ?? {}), c.req.raw.signal);
       return decision ? c.json(decision) : c.body(null, 200);
     }
+  }
+  // AskUserQuestion has two PreToolUse hooks (see install-hooks): the plain one records the event
+  // at once; this copy, marked with a header, is the one held while you answer in the office.
+  if (p.hook_event_name === 'PreToolUse' && p.tool_name === 'AskUserQuestion' && c.req.header(HOLD_HEADER)) {
+    const input = p.tool_input ?? {};
+    const questions = askQuestions(input);
+    const e = live && questions ? normalize(p) : null;
+    if (!e || !questions) return c.body(null, 200);
+    const decision = await approvals.hold(e, questions[0].question.slice(0, 300), c.req.raw.signal, { input, questions });
+    return decision ? c.json(decision) : c.body(null, 200);
   }
   setImmediate(() => ingest(p));
   return c.body(null, 200);
@@ -210,8 +231,12 @@ app.post('/api/approvals', async (c) => {
 });
 
 app.post('/api/approvals/:id', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { decision?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { decision?: string; answers?: unknown };
   const d = body.decision;
+  if (d === 'answer') {
+    const r = approvals.answer(c.req.param('id'), body.answers);
+    return r === 'ok' ? c.body(null, 204) : r === 'gone' ? c.body(null, 404) : c.body(null, 400);
+  }
   if (d !== 'allow' && d !== 'deny' && d !== 'terminal') return c.body(null, 400);
   return approvals.decide(c.req.param('id'), d) ? c.body(null, 204) : c.body(null, 404);
 });

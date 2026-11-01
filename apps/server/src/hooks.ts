@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
-import type { EventKind, OfficeEvent } from '@ai-office/shared';
+import type { AskQuestion, EventKind, OfficeEvent } from '@ai-office/shared';
 
 /** The parts of a Claude Code hook payload we read. Everything else is ignored and never stored. */
 export interface HookPayload {
@@ -49,6 +49,9 @@ export function normalize(p: HookPayload): OfficeEvent | null {
     if (t ? t === 'permission_prompt' : /needs your permission|permission to use/i.test(String(p.message ?? ''))) kind = 'blocked';
   }
 
+  // AskUserQuestion always stops for you, so it shows as a question from the moment it starts
+  if (kind === 'tool_start' && p.tool_name === 'AskUserQuestion') kind = 'blocked';
+
   const isSub = Boolean(p.agent_id);
   const cwd = p.cwd ?? '';
   return {
@@ -78,6 +81,37 @@ export function redact(text: string, max = 60): string {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
+}
+
+const rec = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+
+/** Text for the local answer card: whitespace tidied and KEY=value secrets masked, but paths and identifiers stay readable. Memory only. */
+function readable(text: string, max: number): string {
+  const clean = text.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').replace(SECRET_ASSIGN, '$1=••••').trim();
+  return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
+}
+
+/**
+ * What an AskUserQuestion call asks, for the answer card. Null unless the input has the documented
+ * shape (1–4 questions, 2–4 options each, every one with text): such a call is left to the terminal.
+ * Options are never dropped or reordered, so an index in the card is an index in the original input.
+ */
+export function askQuestions(input: Record<string, unknown>): AskQuestion[] | null {
+  const raw = input.questions;
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 4) return null;
+  const out: AskQuestion[] = [];
+  for (const item of raw) {
+    const q = rec(item);
+    const options = Array.isArray(q.options) ? q.options : [];
+    if (!str(q.question) || options.length < 2 || options.length > 4 || options.some((o) => !str(rec(o).label))) return null;
+    out.push({
+      question: readable(str(q.question), 400),
+      header: readable(str(q.header), 24),
+      multiSelect: q.multiSelect === true,
+      options: options.map((o) => ({ label: readable(str(rec(o).label), 100), description: readable(str(rec(o).description), 200) || undefined })),
+    });
+  }
+  return out;
 }
 
 /**
@@ -133,6 +167,8 @@ export function summarize(tool: string, input: Record<string, unknown>): string 
     case 'Task':
     case 'Agent':
       return redact(str(input.subagent_type) || str(input.description), 40);
+    case 'AskUserQuestion':
+      return Array.isArray(input.questions) ? redact(str(rec(input.questions[0]).question), 60) : '';
     default:
       if (tool.startsWith('mcp__')) {
         const [, server = '', action = ''] = tool.split('__');

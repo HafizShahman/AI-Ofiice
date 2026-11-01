@@ -188,6 +188,11 @@ export async function setApprovals(enabled: boolean): Promise<void> {
   await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ enabled }) });
 }
 
+/** Answer a held AskUserQuestion: per question, the chosen option indexes and/or free text. */
+export async function answerQuestions(id: string, answers: { picked: number[]; other?: string }[]): Promise<void> {
+  await fetch(`/api/approvals/${encodeURIComponent(id)}`, { ...JSON_POST, body: JSON.stringify({ decision: 'answer', answers }) });
+}
+
 export async function decideApproval(id: string, decision: 'allow' | 'deny' | 'terminal'): Promise<void> {
   await fetch(`/api/approvals/${encodeURIComponent(id)}`, { ...JSON_POST, body: JSON.stringify({ decision }) });
 }

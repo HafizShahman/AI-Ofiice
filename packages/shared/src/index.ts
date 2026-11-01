@@ -104,6 +104,34 @@ export interface StateSnapshot {
   agents: AgentState[];
   events: OfficeEvent[];
   sim: boolean;
+  ai: AiState;
+  /** turn_done events since local midnight */
+  doneToday: number;
+}
+
+/** The Office Manager AI (runs `claude -p` on the server's machine). */
+export interface AiState {
+  enabled: boolean;
+  model: string;
+  /** null = not checked yet; false = the `claude` command could not be run */
+  available: boolean | null;
+}
+
+/** Chat channels: "office" (the manager) or "dm:<agentId>" (one per robot). #activity is built in the browser. */
+export type ChatAuthor = 'you' | 'manager' | 'agent' | 'system';
+
+export interface ChatMessage {
+  id: number;
+  ts: number;
+  channel: string;
+  author: ChatAuthor;
+  /** display name for 'agent' (the manager answering as that robot) */
+  name?: string;
+  body: string;
+  /** system lines: how to colour them */
+  tone?: 'info' | 'warn' | 'fail' | 'ok';
+  /** agent the line is about (click flies the camera there) */
+  agentId?: string;
 }
 
 /** Server → browser over /ws */
@@ -112,4 +140,8 @@ export type ServerMessage =
   | { type: 'agent'; agent: AgentState }
   | { type: 'agent.remove'; id: string }
   | { type: 'event'; event: OfficeEvent }
-  | { type: 'sim'; on: boolean };
+  | { type: 'sim'; on: boolean }
+  | { type: 'chat'; message: ChatMessage }
+  | { type: 'chat.clear'; channel: string }
+  | { type: 'typing'; channel: string; on: boolean }
+  | { type: 'ai'; ai: AiState };

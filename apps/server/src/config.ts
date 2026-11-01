@@ -10,7 +10,7 @@ interface FileConfig {
   desks: number;
   timers: { idleAfterSec: number; breakAfterSec: number; chargeAfterSec: number; staleAfterSec: number; doneHoldSec: number };
   roles: { role: string; match: string }[];
-  ai: { enabled: boolean; model: string; contextEvents: number };
+  ai: { enabled: boolean; model: string; contextEvents: number; command?: string; timeoutSec?: number };
 }
 
 const file = JSON.parse(readFileSync(join(ROOT, 'office.config.json'), 'utf8')) as FileConfig;

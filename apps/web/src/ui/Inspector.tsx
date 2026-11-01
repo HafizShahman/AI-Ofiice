@@ -70,7 +70,10 @@ export function Inspector() {
       )}
 
       <div className="flex gap-2 p-3">
-        <button disabled title="Chat arrives in P3" className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-accent/90 text-[13px] font-medium text-[#04131a] disabled:opacity-50">
+        <button
+          onClick={() => useOffice.getState().openChannel(`dm:${a.id}`, true)}
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-accent text-[13px] font-medium text-[#04131a] hover:bg-[#67e8f9]"
+        >
           <Icon name="message" /> Open DM
         </button>
         <button

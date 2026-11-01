@@ -50,7 +50,7 @@ export default defineConfig({
     strictPort: true,
     hmr: process.env.VITE_HMR_HOST ? { host: process.env.VITE_HMR_HOST, clientPort: 5173 } : undefined,
     proxy: {
-      '/api': api,
+      '/api': { target: api, changeOrigin: false }, // keep Host = the page's host: the server's same-origin check compares them
       '/ws': { target: api.replace('http', 'ws'), ws: true },
     },
   },

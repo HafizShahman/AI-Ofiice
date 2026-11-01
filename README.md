@@ -3,7 +3,7 @@
 A light, local-only **isometric sci-fi office** where your Claude Code agents show up as robots. They walk in, go to the prop that matches what they're doing (desk, archive, server bank, holo-table, coffee bar…), raise a hand when they need permission, and walk out when they finish.
 
 - **Plan:** [`docs/PLAN.md`](docs/PLAN.md) · **UI:** [`docs/UI-PLAN.md`](docs/UI-PLAN.md) · **Design:** the "AI Office UI" canvas on claude.ai
-- **Status:** P2 first pass. The browser shows the isometric office with animated robots, a roster, an inspector, a blocked-permission toast and an #activity feed. The raw P1 debug list is at `?debug`. Robots path-find around furniture (walk grid + A*), and `?helper` is a drag-and-drop layout editor. Next: the AI chat (P3).
+- **Status:** P2 first pass. The browser shows the isometric office with animated robots, a roster, an inspector, a blocked-permission toast and an #activity feed. The raw P1 debug list is at `?debug`. Robots path-find around furniture (walk grid + A*), and `?helper` is a drag-and-drop layout editor. The side panel has #activity, #office (the AI Office Manager) and a DM per robot. Next: polish (P4).
 
 ## How it works
 
@@ -63,6 +63,13 @@ office.config.json  desks, idle/break/charge timers, role rules, AI settings
 - **Mouse:** drag to pan, wheel to zoom, click a robot to inspect it, double-click to follow it.
 - **Keys:** `[` `]` previous/next agent · `Shift+F` follow · `Esc` deselect · `+` `−` zoom · `0` reset view · `C` side panel.
 - **URL:** `?agent=<id>` selects an agent · `?helper` layout editor (drag spots, props, walkable areas; Save writes props.json under `npm run dev`) · `?debug` raw state · `?parts` colours the robot's animated segments · `?pose=wave` forces a pose.
+- **Chat:** `/` focuses the composer. Slash commands are free: `/status`, `/agents`, `/who <role>`, `/ai on|off`, `/sim`, `/clear`, `/help`.
+
+## The Office Manager (AI)
+
+Off by default. Turn it on with the **AI** pill in the top bar or `/ai on`. Each question runs one `claude -p --model haiku` call **on the machine running the office server**, using your Claude Code login. It gets only the office state (agents, their recent tool names and the short redacted summaries, recent chat), no tools, no hooks and no MCP servers, and nothing is saved by Claude Code. In a robot's DM it answers as that agent, from that agent's events.
+
+Under DDEV the server runs inside the container, where `claude` isn't installed, so the AI shows as unavailable. Run `npm run dev` on your machine to use it (or point `ai.command` in `office.config.json` at another binary).
 
 ## Credits
 

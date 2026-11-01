@@ -24,10 +24,15 @@ Personal project (new build). A light, local-only **isometric sci-fi office** wh
   - `layout.ts` holds the live layout (`getLayout`/`setLayout`/`onLayoutChange`); the scene rebuilds sprites and re-paths robots on change.
   - `office/Helper.tsx` (`?helper`): drag spots, sprite feet (a single-sprite prop's spots move with it), facing points, area/obstacle corners, stairs; arrows nudge (Shift ×10), Delete removes; shows the walk grid, footprints and live robot paths. **Save** posts to the Vite dev plugin `/__helper/props` (vite.config.ts, dev only, same-origin) which writes props.json; the built app downloads it instead. `scene/serialize.ts` keeps the one-item-per-line format (round-trips byte-identical). The server reads props.json at start: restart it after adding/removing spots.
   - The nav polygons and the approval/server-bank spots were traced by eye: check them in `?helper`.
+- **P3 chat: built** (2026-11-01).
+  - Server `chat.ts`: channels `office` and `dm:<agentId>` (messages table), slash commands (`/status /agents /who /ai on|off /sim /clear /help`, free), blocked pings into #office (deduped 5 min per agent+tool) and the agent's DM. `manager.ts`: builds a compact, redacted context (agents + last `ai.contextEvents` events without tool_end + recent chat) and runs `claude -p --model haiku --system-prompt … --tools "" --max-turns 1 --no-session-persistence --strict-mcp-config --settings '{"disableAllHooks":true}' --session-id <uuid>` from the OS temp dir, prompt on stdin, 60 s timeout. Its session ids are ignored by `/hook`. In a DM it answers as that agent from that agent's events. `OFFICE_AI_COMMAND` / `ai.command` override the binary (a fake script works for tests).
+  - AI is off by default; state is saved in `settings.ai_enabled` and pushed as `{type:'ai'}`. `available:false` = the command couldn't be run (e.g. the server runs in DDEV, where `claude` isn't installed: run `npm run dev` on the Mac for the Office Manager).
+  - `/api/*` POSTs require `application/json` and a same-host Origin (blocks drive-by CSRF from other sites); the Vite proxy keeps the Host header for this.
+  - Web: `ui/SidePanel.tsx` (channels, DMs with the agent's timeline merged in, composer with slash suggestions, typing indicator), `ui/Rich.tsx` (`code`, **bold**, agent names → select robot). Top-bar AI pill, inspector "Open DM", `/` focuses the composer.
 - **Next, in order:**
-  1. **P3 chat:** #office with the AI Office Manager; DMs (buttons are stubbed in the inspector and side panel).
-  2. **P4:** wallboard, settings drawer, ⌘K palette.
-  3. Draw calls: ~7 per robot; instancing if 12 robots blow the PLAN §14 budget. Lazy-load the helper if the bundle gets tight (247 KB gz now).
+  1. **P4:** wallboard (`?wallboard`), settings drawer, ⌘K palette, About/credits, browser notification on blocked.
+  2. Try the Office Manager under DDEV: install Claude Code in the web container and pass `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`), or keep it a local-only feature.
+  3. Draw calls (~7 per robot) and lazy-loading the helper if the bundle gets tight (250 KB gz now).
 
 ## Commands
 
@@ -49,9 +54,10 @@ Demo without Claude Code: the "Run demo" button, `POST /api/sim {"on":true}`, or
 ## Architecture
 
 - `apps/server/src/`, Node 22.18+/24, **runs the .ts files directly** (type stripping, no build):
-  - `index.ts`: Hono routes (`POST /hook`, `/api/state|events|health|sim`), WebSocket `/ws` (first a snapshot, then batched arrays every 50 ms), and the static web build
+  - `index.ts`: Hono routes (`POST /hook`, `/api/state|events|health|sim|chat/:channel|ai`), WebSocket `/ws` (first a snapshot, then batched arrays every 50 ms), and the static web build
   - `hooks.ts`: normalise a hook payload into an `OfficeEvent`; redact
   - `state.ts`: the agent state machine (`arriving·working·blocked·idle·break·charging·done·leaving`), desk allocation, spot claiming from `props.json`, idle/break/charge timers (in `office.config.json`)
+  - `chat.ts` (channels, slash commands, pings) + `manager.ts` (the `claude -p` Office Manager)
   - `roles.ts` (role regex in `office.config.json`), `db.ts` (node:sqlite at `.data/office.db`), `sim.ts`, `config.ts` (`HOST`, `PORT`, `DATA_DIR`, token in `.data/token`)
 - `apps/web/`: Vite + React 19 + Tailwind v4 (tokens from UI-PLAN §5) + zustand. `App.tsx` = office shell (`?debug` = P1 debug view in `DebugView.tsx`). `scene/` = three.js office, `office/OfficeView.tsx` = canvas + tags + camera buttons, `office/Helper.tsx` = `?helper` layout editor, `ui/` = panels.
 - `apps/web/src/scene/props.json`: **single source of prop positions**, read by both server and web. Coordinates are **% of the 2400×1792 room image** (`Assets/room/bg-main-area.png`). `foot` is the bottom-centre anchor, `width` is a % of room width, `z` overrides draw order, and `spots` are where robots stand, `face` where they look, `nav` = walkable areas, obstacles and stairs.

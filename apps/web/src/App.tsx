@@ -54,6 +54,7 @@ function useKeyboard() {
         s.select(ids[(i + (e.key === ']' ? 1 : -1) + ids.length) % ids.length]);
       } else if (e.key === 'F' && e.shiftKey) s.selected && s.setFollowing(!s.following);
       else if (e.key === 'c' || e.key === 'C') s.toggleChat();
+      else if (e.key === '/') s.openChannel(s.channel === 'activity' ? 'office' : s.channel, true);
       else if (e.key === '+' || e.key === '=') sceneRef.current?.zoomBy(1.25);
       else if (e.key === '-') sceneRef.current?.zoomBy(0.8);
       else if (e.key === '0') sceneRef.current?.fit();

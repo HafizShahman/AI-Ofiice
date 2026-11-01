@@ -44,6 +44,7 @@ const paths = {
   ),
   play: <path d="m6 3 14 9-14 9z" fill="currentColor" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" />,
+  send: <path d="m22 2-7 20-4-9-9-4zM22 2 11 13" />,
   hash: <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />,
   chevron: <path d="m6 9 6 6 6-6" />,
   panel: (

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
+import type { AgentState, AiState, ChatMessage, OfficeEvent, ServerMessage } from '@ai-office/shared';
 
 export type Connection = 'connecting' | 'open' | 'closed';
 
@@ -15,7 +15,18 @@ interface OfficeStore {
   selected: string | null;
   following: boolean;
   chatOpen: boolean;
+  ai: AiState;
+  doneToday: number;
+  /** side-panel channel: "activity", "office" or "dm:<agentId>" */
+  channel: string;
+  chat: Record<string, ChatMessage[]>;
+  typing: Record<string, boolean>;
+  unread: Record<string, number>;
+  /** bumped to ask the composer to take focus ("/" key, Open DM) */
+  focusTick: number;
   apply(msgs: ServerMessage[]): void;
+  openChannel(channel: string, focus?: boolean): void;
+  setHistory(channel: string, msgs: ChatMessage[]): void;
   select(id: string | null): void;
   setFollowing(on: boolean): void;
   toggleChat(): void;
@@ -34,6 +45,18 @@ export const useOffice = create<OfficeStore>((set) => ({
   selected: new URLSearchParams(location.search).get('agent'),
   following: false,
   chatOpen: true,
+  ai: { enabled: false, model: 'haiku', available: null },
+  doneToday: 0,
+  channel: 'office',
+  chat: {},
+  typing: {},
+  unread: {},
+  focusTick: 0,
+  openChannel: (channel, focus = false) => {
+    set((s) => ({ channel, chatOpen: true, unread: { ...s.unread, [channel]: 0 }, focusTick: focus ? s.focusTick + 1 : s.focusTick }));
+    if (channel !== 'activity' && !useOffice.getState().chat[channel]) void loadChannel(channel);
+  },
+  setHistory: (channel, msgs) => set((s) => ({ chat: { ...s.chat, [channel]: msgs } })),
   select: (selected) => {
     const url = new URL(location.href);
     if (selected) url.searchParams.set('agent', selected);
@@ -47,13 +70,19 @@ export const useOffice = create<OfficeStore>((set) => ({
   // one store update per server batch, so event bursts don't cause a render per event
   apply: (msgs) =>
     set((s) => {
-      let { agents, events, sim, names } = s;
+      let { agents, events, sim, names, ai, doneToday, chat, typing, unread } = s;
+      let reload = false;
       for (const m of msgs) {
         if (m.type === 'snapshot') {
           agents = Object.fromEntries(m.state.agents.map((a) => [a.id, a]));
           names = { ...names, ...Object.fromEntries(m.state.agents.map((a) => [a.id, a.name])) };
           events = m.state.events;
           sim = m.state.sim;
+          ai = m.state.ai;
+          doneToday = m.state.doneToday;
+          chat = {}; // (re)connected: history is re-read from the server
+          typing = {};
+          reload = true;
         } else if (m.type === 'agent') {
           agents = { ...agents, [m.agent.id]: m.agent };
           if (names[m.agent.id] !== m.agent.name) names = { ...names, [m.agent.id]: m.agent.name };
@@ -62,12 +91,26 @@ export const useOffice = create<OfficeStore>((set) => ({
           agents = rest;
         } else if (m.type === 'event') {
           events = [...events, m.event].slice(-MAX_EVENTS);
+          if (m.event.kind === 'turn_done') doneToday++;
         } else if (m.type === 'sim') {
           sim = m.on;
+        } else if (m.type === 'ai') {
+          ai = m.ai;
+        } else if (m.type === 'typing') {
+          typing = { ...typing, [m.channel]: m.on };
+        } else if (m.type === 'chat.clear') {
+          chat = { ...chat, [m.channel]: [] };
+        } else if (m.type === 'chat') {
+          const ch = m.message.channel;
+          const list = chat[ch];
+          if (list && !list.some((x) => x.id === m.message.id)) chat = { ...chat, [ch]: [...list, m.message].slice(-500) };
+          const looking = s.chatOpen && s.channel === ch;
+          if (!looking && m.message.author !== 'you') unread = { ...unread, [ch]: (unread[ch] ?? 0) + 1 };
         }
       }
       const selected = s.selected && !agents[s.selected] && s.selected !== 'ceo' ? null : s.selected;
-      return { agents, events, sim, selected, names };
+      if (reload && s.channel !== 'activity') queueMicrotask(() => void loadChannel(s.channel));
+      return { agents, events, sim, selected, names, ai, doneToday, chat, typing, unread };
     }),
 }));
 
@@ -107,4 +150,19 @@ export function connect(): () => void {
 
 export async function toggleSim(on: boolean): Promise<void> {
   await fetch('/api/sim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ on }) });
+}
+
+const JSON_POST = { method: 'POST', headers: { 'content-type': 'application/json' } } as const;
+
+export async function loadChannel(channel: string): Promise<void> {
+  const r = await fetch(`/api/chat/${encodeURIComponent(channel)}`);
+  if (r.ok) useOffice.getState().setHistory(channel, (await r.json()) as ChatMessage[]);
+}
+
+export async function sendChat(channel: string, body: string): Promise<void> {
+  await fetch(`/api/chat/${encodeURIComponent(channel)}`, { ...JSON_POST, body: JSON.stringify({ body }) });
+}
+
+export async function setAi(on: boolean): Promise<void> {
+  await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify({ on }) });
 }

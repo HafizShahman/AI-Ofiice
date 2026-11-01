@@ -314,7 +314,8 @@ In-memory state is authoritative while the server runs. Agents aren't persisted:
 | `GET` | `/api/state` | Full snapshot: agents, recent events, demo state · built |
 | `GET` | `/api/events?agent=&limit=` | Timeline for a DM · built |
 | `POST` | `/api/sim` | `{ on }`: start or stop the scripted demo · built |
-| `GET/POST` | `/api/chat/:channel` | History and send message · P3 |
+| `GET/POST` | `/api/chat/:channel` | History and send message (`office` or `dm:<agentId>`); replies arrive over WS · built |
+| `POST` | `/api/ai` | `{ on }`: Office Manager on/off (saved in `settings`) · built |
 | `WS` | `/ws` | First message is a `snapshot`, then batched arrays (about 20 per second) of `agent`, `agent.remove`, `event`, `sim` · built |
 
 The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TOKEN` overrides it. One port (`:3334`) serves the hooks, the API, the WebSocket and the built UI. In dev, Vite runs on `:5173` and proxies `/api` and `/ws`.
@@ -402,7 +403,7 @@ AI-Ofiice/
 | **P0 – Asset spike** (1–2 days) | Decimate and animate the robot. Set up the ortho camera on the backdrop and match its isometric angle. Toon/outline look test. 12 clones walking over the room. | 12 robots run at 60 fps on the Air, the GLB is under 1.5 MB, and robots look like part of the painting |
 | **P1 – Event backbone** · *scaffold built, tested with demo payloads* | Server, hooks installer, normalizer, state machine, WS. A 2D debug list in the web app. | Real sessions + subagents appear and leave correctly, and `agent_id` attribution is verified *(remaining: run against a real Claude Code session)* |
 | **P2 – Isometric office** | Props file, `?helper` mode, walk grid + A*, deck and stairs, foreground cut-outs, desk allocation, state→animation, overhead tags, role tints. | Watching a real Claude Code task "reads" correctly without looking at the terminal |
-| **P3 – Chat** | #activity feed, DMs, slash commands, manager AI via `claude -p`, AI toggle, blocked pings. | You can ask "who's stuck?" and get a correct answer |
+| **P3 – Chat** · *built* | #activity feed, DMs, slash commands, manager AI via `claude -p`, AI toggle, blocked pings. | You can ask "who's stuck?" and get a correct answer |
 | **P4 – Polish** | Day/night, ambient events, sim mode, settings drawer, About/attribution. | The demo runs with no Claude session (`?sim`) |
 | **P5 – Optional** | Whisper-to-agent, Tauri desktop wrapper, CEO avatar interactions, cost/token HUD (from the transcript). | Each is optional |
 
@@ -447,5 +448,5 @@ AI-Ofiice/
 
 1. ~~Camera~~ **Decided:** fixed isometric angle from the painted room, with zoom and pan.
 2. ~~Max desks~~ **Decided:** 8 workstations in one room. Extra agents fall back to the lounge.
-3. **Chat AI default:** off (zero cost) or on with Haiku?
+3. ~~Chat AI default~~ **Decided:** off by default (zero cost). One click on the top-bar "AI" pill or `/ai on` turns it on; the choice is saved.
 4. **Desktop wrapper later:** Tauri, or stay as a browser tab?

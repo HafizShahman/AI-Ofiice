@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { toggleSim, useOffice } from '../store.ts';
+import { setAi, toggleSim, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { useCounts } from './util.tsx';
 
@@ -10,6 +10,7 @@ export function TopBar() {
   const sim = useOffice((s) => s.sim);
   const connection = useOffice((s) => s.connection);
   const chatOpen = useOffice((s) => s.chatOpen);
+  const ai = useOffice((s) => s.ai);
   const firstBlocked = useOffice((s) => Object.values(s.agents).find((a) => a.status === 'blocked')?.id);
 
   return (
@@ -49,6 +50,21 @@ export function TopBar() {
         >
           <Icon name={sim ? 'stop' : 'play'} size={12} />
           {sim ? 'Demo running · stop' : 'Run demo'}
+        </button>
+        <button
+          onClick={() => void setAi(!ai.enabled)}
+          aria-pressed={ai.enabled}
+          title={
+            ai.enabled
+              ? ai.available === false
+                ? 'The claude command was not found on the machine running the server'
+                : 'The Office Manager answers in #office and DMs (one claude -p call per question)'
+              : 'Turn on the Office Manager (runs claude -p with your Claude Code login)'
+          }
+          className={`${chip} rounded-full ${ai.enabled ? (ai.available === false ? 'border-warning/50 text-warning' : 'border-accent-2/50 bg-accent-2/10 text-[#f0abfc]') : 'border-border text-muted hover:text-text'}`}
+        >
+          <Icon name="sparkle" />
+          {ai.enabled ? `AI on · ${ai.model[0].toUpperCase()}${ai.model.slice(1)}` : 'AI off'}
         </button>
         <button
           aria-label={chatOpen ? 'Hide side panel' : 'Show side panel'}

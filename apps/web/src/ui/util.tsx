@@ -35,14 +35,12 @@ export function useAgentList(): AgentState[] {
 
 export function useCounts(): Record<StatusGroup, number> & { doneToday: number } {
   const list = useAgentList();
-  const events = useOffice((s) => s.events);
+  const doneToday = useOffice((s) => s.doneToday);
   return useMemo(() => {
-    const c = { working: 0, idle: 0, blocked: 0, done: 0, doneToday: 0 };
+    const c = { working: 0, idle: 0, blocked: 0, done: 0, doneToday };
     for (const a of list) c[statusGroup(a)]++;
-    const midnight = new Date().setHours(0, 0, 0, 0);
-    c.doneToday = events.filter((e) => e.kind === 'turn_done' && e.ts >= midnight).length;
     return c;
-  }, [list, events]);
+  }, [list, doneToday]);
 }
 
 export function Avatar({ a, size = 28 }: { a: Pick<AgentState, 'role'>; size?: number }) {

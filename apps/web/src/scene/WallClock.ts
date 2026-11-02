@@ -16,8 +16,8 @@ import { lightAt, phaseOf } from './daylight.ts';
 const K = ROOM_W / 1920; // art px (1920 wide) -> room px
 const SLOPE = 0.47; // the window wall climbs 0.47 px per px to the right (DayNight.ts)
 const CENTRE = [466, 455]; // art px: horizontally centred on the window (188..745), a little above mid-glass
-const WIDTH = 148; // art px along x
-const HEIGHT = 56; // art px, straight up (canvas aspect W/H = 440/150 matches the skewed run length / HEIGHT)
+const WIDTH = 222; // art px along x
+const HEIGHT = 84; // art px, straight up (canvas aspect W/H = 440/150 matches the skewed run length / HEIGHT)
 const RUN = [WIDTH, -SLOPE * WIDTH];
 const ORIGIN = [CENTRE[0] - WIDTH / 2, CENTRE[1] + HEIGHT / 2 + (SLOPE * WIDTH) / 2]; // bottom-left corner
 const ORDER = -4e5; // above the backdrop, sky, glow and sun beams, below every prop

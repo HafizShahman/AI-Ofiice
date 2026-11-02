@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import type { ChatMessage, OfficeEvent } from '@ai-office/shared';
+import type { BoardItem, ChatMessage, OfficeEvent } from '@ai-office/shared';
 import { config } from './config.ts';
 
 const KEEP_DAYS = 7;
@@ -18,6 +18,10 @@ db.exec(`
     author TEXT NOT NULL, body TEXT NOT NULL, meta TEXT
   );
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS board (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, text TEXT NOT NULL, state TEXT NOT NULL,
+    due INTEGER, repeat TEXT, created INTEGER NOT NULL, done_at INTEGER
+  );
 `);
 
 const insert = db.prepare(
@@ -55,10 +59,10 @@ export function countEvents(kind: OfficeEvent['kind'], since: number): number {
 
 // ── chat ───────────────────────────────────────────────────────────────────
 
-type Meta = Pick<ChatMessage, 'name' | 'tone' | 'agentId'>;
+type Meta = Pick<ChatMessage, 'name' | 'tone' | 'agentId' | 'artifact'>;
 
 export function saveMessage(m: Omit<ChatMessage, 'id'>): ChatMessage {
-  const meta: Meta = { name: m.name, tone: m.tone, agentId: m.agentId };
+  const meta: Meta = { name: m.name, tone: m.tone, agentId: m.agentId, artifact: m.artifact };
   const r = insertMsg.run(m.ts, m.channel, m.author, m.body, JSON.stringify(meta));
   return { ...m, id: Number(r.lastInsertRowid) };
 }
@@ -81,3 +85,45 @@ export function setting(key: string): string | undefined {
 export function saveSetting(key: string, value: string): void {
   putSetting.run(key, value);
 }
+
+// ── mission board ──────────────────────────────────────────────────────────
+// Not pruned with the 7-day events: the board is the user's own list.
+
+interface BoardRow {
+  id: number;
+  kind: BoardItem['kind'];
+  text: string;
+  state: BoardItem['state'];
+  due: number | null;
+  repeat: BoardItem['repeat'] | null;
+  created: number;
+  done_at: number | null;
+}
+
+const toItem = (r: BoardRow): BoardItem => ({
+  id: Number(r.id),
+  kind: r.kind,
+  text: r.text,
+  state: r.state,
+  ...(r.due !== null ? { due: Number(r.due) } : {}),
+  ...(r.repeat ? { repeat: r.repeat } : {}),
+  createdAt: Number(r.created),
+  ...(r.done_at !== null ? { doneAt: Number(r.done_at) } : {}),
+});
+
+const boardAll = db.prepare('SELECT * FROM board ORDER BY id');
+const boardInsert = db.prepare('INSERT INTO board (kind, text, state, due, repeat, created) VALUES (?, ?, ?, ?, ?, ?)');
+const boardUpdate = db.prepare('UPDATE board SET state = ?, due = ?, done_at = ? WHERE id = ?');
+const boardDelete = db.prepare('DELETE FROM board WHERE id = ?');
+const boardClearDone = db.prepare("DELETE FROM board WHERE state = 'done'");
+
+export const listBoard = (): BoardItem[] => (boardAll.all() as unknown as BoardRow[]).map(toItem);
+
+export function insertBoard(i: Pick<BoardItem, 'kind' | 'text' | 'due' | 'repeat'>): number {
+  const r = boardInsert.run(i.kind, i.text, 'open', i.due ?? null, i.repeat ?? null, Date.now());
+  return Number(r.lastInsertRowid);
+}
+
+export const updateBoard = (id: number, state: BoardItem['state'], due: number | null, doneAt: number | null): void => void boardUpdate.run(state, due, doneAt, id);
+export const deleteBoard = (id: number): void => void boardDelete.run(id);
+export const clearDoneBoard = (): void => void boardClearDone.run();

@@ -3,6 +3,8 @@ import { config } from './config.ts';
 import { channelHistory, clearChannel, countEvents, recentEvents, saveMessage, saveSetting, setting } from './db.ts';
 import { ask, buildContext, checkAvailable, describeAgent, systemPrompt } from './manager.ts';
 import type { Office } from './state.ts';
+import type { Dispatcher } from './dispatch.ts';
+import { parseWhen, type Board } from './board.ts';
 
 /**
  * Chat: #office (the Office Manager) and one DM channel per robot ("dm:<agentId>").
@@ -16,13 +18,24 @@ export interface ChatDeps {
   sim: { running: boolean };
   setSim(on: boolean): void;
   approvals: { enabled: boolean; setEnabled(on: boolean): void };
+  dispatch: Dispatcher;
+  board: Board;
 }
 
 const HELP = [
   '`/status` office summary · `/agents` who is here · `/who <role or name>`',
+  '`/todo <task>` and `/remind <when> <what>` go to the CEO, who pins them on the mission board (`in 20m`, `at 15:30`, `tomorrow 9am`, `daily 9:00`) · `/board` lists it',
+  '`/task <what to do>` start a new agent on it (in a DM: in that agent’s project; in #office: `/task @project <what>`) · `/tasks on|off|stop` · needs `/tasks on`',
   '`/ai on` · `/ai off` the Office Manager · `/approvals on|off` answer permission prompts here · `/sim on|off` the demo · `/clear` this channel',
-  'Anything else is a question for the Office Manager (when AI is on).',
+  'Anything else is a question for the Office Manager (when AI is on). It can make a page (“make a chart of today’s activity”) and read a pasted `claude.ai/artifact` link.',
 ].join('\n');
+
+/** Aliases `claude --model` accepts. */
+export const MODELS = ['haiku', 'sonnet', 'opus'];
+
+/** "Mon 14:30" in the user's timezone (`tz` = the browser's getTimezoneOffset), not the server's. */
+const fmtAt = (ts: number, tz = new Date().getTimezoneOffset()) =>
+  new Date(ts - tz * 60_000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
 export const midnight = () => new Date().setHours(0, 0, 0, 0);
 
@@ -34,7 +47,12 @@ export class Chat {
   constructor(deps: ChatDeps) {
     this.deps = deps;
     const saved = setting('ai_enabled');
-    this.ai = { enabled: saved ? saved === '1' : config.ai.enabled, model: config.ai.model, available: null };
+    // saved choices from the settings drawer win over office.config.json (manager.ts reads config.ai at call time)
+    const model = setting('ai_model');
+    if (model && MODELS.includes(model)) config.ai.model = model;
+    const ctx = Number(setting('ai_context_events'));
+    if (ctx >= 5 && ctx <= 100) config.ai.contextEvents = ctx;
+    this.ai = { enabled: saved ? saved === '1' : config.ai.enabled, model: config.ai.model, contextEvents: config.ai.contextEvents, available: null };
     if (this.ai.enabled) void this.refreshAvailable();
   }
 
@@ -60,6 +78,22 @@ export class Chat {
     if (on) await this.refreshAvailable();
   }
 
+  setModel(model: string): void {
+    if (!MODELS.includes(model)) return;
+    config.ai.model = model;
+    saveSetting('ai_model', model);
+    this.ai = { ...this.ai, model };
+    this.deps.push({ type: 'ai', ai: this.ai });
+  }
+
+  setContextEvents(n: number): void {
+    const contextEvents = Math.round(Math.min(100, Math.max(5, n)));
+    config.ai.contextEvents = contextEvents;
+    saveSetting('ai_context_events', String(contextEvents));
+    this.ai = { ...this.ai, contextEvents };
+    this.deps.push({ type: 'ai', ai: this.ai });
+  }
+
   private async refreshAvailable(): Promise<void> {
     const available = await checkAvailable();
     this.ai = { ...this.ai, available };
@@ -67,12 +101,12 @@ export class Chat {
   }
 
   /** A user message arrived on a channel. */
-  async handle(channel: string, body: string): Promise<void> {
+  async handle(channel: string, body: string, tz?: number): Promise<void> {
     const text = body.trim().slice(0, 2000);
     if (!text) return;
     if (!validChannel(channel)) return;
     this.post({ channel, author: 'you', body: text });
-    if (text.startsWith('/')) return this.command(channel, text);
+    if (text.startsWith('/')) return this.command(channel, text, tz);
     if (!this.ai.enabled) {
       this.system(channel, 'The Office Manager is off, so nobody reads questions here. Turn it on with `/ai on` (it runs `claude -p` with Haiku), or try `/status`.');
       return;
@@ -108,8 +142,13 @@ export class Chat {
         sim: this.deps.sim.running,
       });
       const prompt = `OFFICE STATE\n${context}\n\nQUESTION\n${question}`;
-      const r = await ask(systemPrompt(asAgent), prompt);
-      if (r.ok) this.post({ channel, author: asAgent ? 'agent' : 'manager', name: asAgent?.name, body: r.text, agentId: asAgent?.id });
+      const r = await ask(systemPrompt(asAgent, { artifacts: true }), prompt, { artifacts: true });
+      if (r.ok) {
+        const author = asAgent ? 'agent' : 'manager';
+        // each page the manager published gets a card (link + source), then its answer
+        for (const artifact of r.artifacts ?? []) this.post({ channel, author, name: asAgent?.name, body: artifact.title, agentId: asAgent?.id, artifact });
+        this.post({ channel, author, name: asAgent?.name, body: r.text, agentId: asAgent?.id });
+      }
       else this.system(channel, r.text, 'fail');
       if (!r.ok && (r.text.includes("Couldn't find") || r.text.includes('inside DDEV'))) this.ai = { ...this.ai, available: false };
     } finally {
@@ -119,7 +158,71 @@ export class Chat {
     }
   }
 
-  private command(channel: string, text: string): void {
+  /** `/todo` and `/remind`: hand a note to the CEO, who walks to the mission board and pins it. */
+  private pin(channel: string, kind: 'task' | 'reminder', body: string, tz?: number): void {
+    let text = body.trim();
+    let opts: { due?: number; repeat?: 'daily' | 'weekly' } = {};
+    if (kind === 'reminder') {
+      const when = parseWhen(text, Date.now(), tz);
+      if (!when || !when.rest) {
+        return this.system(channel, 'When? Try `/remind in 20m call Sam`, `/remind at 15:30 stand-up`, `/remind tomorrow 9am pay rent` or `/remind daily 9:00 standup`.', 'warn');
+      }
+      text = when.rest;
+      opts = { due: when.due, repeat: when.repeat };
+    }
+    const r = this.deps.board.add(kind, text, opts);
+    if (!r.ok) return this.system(channel, r.error, 'warn');
+    const at = r.item.due ? fmtAt(r.item.due, tz) : '';
+    this.system(channel, kind === 'task' ? `📌 The CEO pinned a task on the mission board: ${r.item.text}` : `📌 The CEO pinned a reminder for ${at}${r.item.repeat ? ` (${r.item.repeat})` : ''}: ${r.item.text}`, 'ok');
+  }
+
+  /** `/task [@project] <text>`: start a new agent. In a DM it works in that agent's project. */
+  private task(channel: string, text: string): void {
+    const d = this.deps.dispatch;
+    let rest = text.replace(/^\/task\s*/i, '');
+    const dm = this.agentFor(channel);
+    const projects = d.state().projects;
+    let cwd: string | undefined = dm?.cwd;
+    const tag = rest.match(/^@(\S+)\s*/);
+    if (tag) {
+      const name = tag[1].toLowerCase();
+      const hit = projects.find((p) => p.name.toLowerCase() === name) ?? projects.find((p) => p.name.toLowerCase().startsWith(name));
+      if (!hit) return this.system(channel, `No project “${tag[1]}”. Known: ${projects.map((p) => `\`${p.name}\``).join(', ') || 'none yet'}.`, 'warn');
+      cwd = hit.path;
+      rest = rest.slice(tag[0].length);
+    }
+    cwd ??= d.state().last ?? (projects.length === 1 ? projects[0].path : undefined);
+    if (!rest.trim()) return this.system(channel, 'Usage: `/task [@project] <what to do>`');
+    if (!cwd) return this.system(channel, `Which project? Use \`/task @project …\`. Known: ${projects.map((p) => `\`${p.name}\``).join(', ') || 'none yet (start Claude Code in a folder once)'}.`, 'warn');
+    this.dispatchTask(channel, rest, cwd);
+  }
+
+  /** Start a task and tell the channel (and #office) where to follow it. */
+  dispatchTask(channel: string, task: string, cwd: string): { ok: boolean; error?: string; id?: string } {
+    const r = this.deps.dispatch.start(task, cwd);
+    if (!r.ok) {
+      this.system(channel, r.error, 'warn');
+      return { ok: false, error: r.error };
+    }
+    const brief = task.trim().replace(/\s+/g, ' ').slice(0, 160);
+    this.post({ channel: `dm:${r.id}`, author: 'you', body: task.trim().slice(0, 4000) });
+    const line = `▶ New task in \`${r.project}\`: ${brief}. A new agent is starting; its answer will land in its DM.`;
+    this.system(channel, line, 'info');
+    if (channel !== `dm:${r.id}`) this.system(`dm:${r.id}`, `Started from ${channel === 'office' ? '#office' : 'a DM'} in \`${r.project}\`.`, 'info');
+    return { ok: true, id: r.id };
+  }
+
+  /** A dispatched task ended: its answer goes to its DM, a one-liner to #office. */
+  taskFinished(r: { id: string; project: string; task: string; ok: boolean; stopped: boolean; text: string }): void {
+    const dm = `dm:${r.id}`;
+    const name = this.deps.office.agents.get(r.id)?.name;
+    if (r.ok) this.post({ channel: dm, author: 'agent', name, agentId: r.id, body: r.text });
+    else this.system(dm, r.stopped ? `Stopped.${r.text ? `\n${r.text}` : ''}` : `The task failed. ${r.text}`, r.stopped ? 'info' : 'fail', r.id);
+    const brief = r.task.replace(/\s+/g, ' ').slice(0, 80);
+    this.system('office', r.ok ? `✓ ${name ?? 'A task agent'} finished in \`${r.project}\`: ${brief}` : r.stopped ? `■ Task stopped in \`${r.project}\`: ${brief}` : `✕ A task failed in \`${r.project}\`: ${brief}`, r.ok ? 'ok' : r.stopped ? 'info' : 'fail', r.id);
+  }
+
+  private command(channel: string, text: string, tz?: number): void {
     const [cmd, ...rest] = text.slice(1).split(/\s+/);
     const arg = rest.join(' ').toLowerCase();
     const office = this.deps.office;
@@ -167,6 +270,39 @@ export class Chat {
           arg === 'on'
             ? 'Approving from the office is on: permission prompts wait here with Allow / Deny before going to the terminal. If you installed the hooks before this feature, re-run `npm run install-hooks` once.'
             : 'Approving from the office is off: permission prompts go straight to the terminal.',
+        );
+      }
+      case 'todo':
+      case 'remind':
+      case 'reminder':
+        return this.pin(channel, cmd.toLowerCase() === 'todo' ? 'task' : 'reminder', text.replace(/^\/\w+\s*/, ''), tz);
+      case 'board': {
+        const items = this.deps.board.items().filter((i) => i.state !== 'done');
+        const fmt = (t: number) => fmtAt(t, tz);
+        return this.system(
+          channel,
+          items.length ? items.map((i) => (i.kind === 'task' ? `☐ ${i.text}` : `⏰ ${i.text} · ${i.state === 'alerting' ? 'due now' : fmt(i.due!)}${i.repeat ? ` · ${i.repeat}` : ''}`)).join('\n') : 'The mission board is empty. Try `/todo write the report` or `/remind in 20m stretch`.',
+        );
+      }
+      case 'task':
+        return this.task(channel, text);
+      case 'tasks': {
+        const d = this.deps.dispatch;
+        if (arg === 'stop') {
+          const ids = d.state().running.map((r) => r.id);
+          ids.forEach((id) => d.stop(id));
+          return this.system(channel, ids.length ? `Stopping ${ids.length} task${ids.length === 1 ? '' : 's'}.` : 'No task is running.');
+        }
+        if (arg !== 'on' && arg !== 'off') {
+          const s = d.state();
+          return this.system(channel, `Tasks from the office are ${s.enabled ? `on (${s.mode === 'plan' ? 'read-only plan mode' : 'may edit files'})` : 'off'}; ${s.running.length} running. Use \`/tasks on\`, \`/tasks off\` or \`/tasks stop\`.`);
+        }
+        void d.setEnabled(arg === 'on');
+        return this.system(
+          channel,
+          arg === 'on'
+            ? `Tasks from the office are on (${d.mode === 'plan' ? 'read-only plan mode: the agent investigates and proposes, it changes nothing' : 'the agent may edit files in the project'}). Try \`/task look at the failing tests and tell me why\`. Change the mode in Settings.`
+            : 'Tasks from the office are off.',
         );
       }
       case 'ai': {

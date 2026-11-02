@@ -4,7 +4,10 @@ import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
 import { activityLine, modelLine, PROPS, ROLE_COLOR, spotIds, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { bindSceneSound } from '../sound/cues.ts';
 import { useOffice } from '../store.ts';
+import { QUALITY_DPR, usePrefs, useUi } from '../ui/prefs.ts';
 import { Icon } from '../ui/icons.tsx';
+import { anchorEls } from '../scene/anchors.ts';
+import { BoardHotspot } from '../ui/MissionBoard.tsx';
 import { Helper } from './Helper.tsx';
 import { useCeoRounds } from './useCeoRounds.ts';
 import { MEETING_MAX_S, useMeeting } from './useMeeting.ts';
@@ -18,8 +21,11 @@ const tagEls = new Map<string, HTMLElement>();
 
 const ceoWalking = () => sceneRef.current?.isWalking('ceo') ?? null;
 
-/** The CEO is scenery rather than an agent: it can't be selected. */
-const fixture = (id: string | null | undefined) => id === 'ceo';
+/** The CEO and the standby researcher are scenery rather than agents: they can't be selected. */
+const fixture = (id: string | null | undefined) => id === 'ceo' || id === STANDBY_RESEARCHER;
+
+/** Shown reading at the archive whenever no live agent has the researcher role, so that character is never missing. */
+const STANDBY_RESEARCHER = 'standby-researcher';
 
 export function OfficeView({ children }: { children?: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -27,16 +33,29 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   const agents = useOffice((s) => s.agents);
   const selected = useOffice((s) => s.selected);
   const following = useOffice((s) => s.following);
+  const wallboard = useUi((s) => s.wallboard);
   const list = useMemo(() => Object.values(agents).sort((a, b) => a.startedAt - b.startedAt), [agents]);
 
   // mount the scene once
   useEffect(() => {
     const scene = new OfficeScene(canvas.current!, tagEls);
+    scene.anchors = anchorEls;
     sceneRef.current = scene;
     const unbindSound = bindSceneSound(scene);
     const ro = new ResizeObserver(([e]) => scene.resize(e.contentRect.width, e.contentRect.height));
     ro.observe(wrap.current!);
+    // settings: resolution cap, reduced motion, and the wallboard tour
+    let cap = 0;
+    const sync = () => {
+      const p = usePrefs.getState();
+      if (QUALITY_DPR[p.quality] !== cap) scene.setPixelRatioCap((cap = QUALITY_DPR[p.quality]));
+      scene.reduceMotion = p.reduceMotion;
+      scene.setTour(useUi.getState().wallboard && !p.reduceMotion);
+    };
+    sync();
+    const unsubs = [usePrefs.subscribe(sync), useUi.subscribe(sync)];
     return () => {
+      unsubs.forEach((u) => u());
       unbindSound();
       ro.disconnect();
       scene.dispose();
@@ -44,8 +63,19 @@ export function OfficeView({ children }: { children?: ReactNode }) {
     };
   }, []);
 
+  // the researcher only exists while an agent has that role (roles follow the work), so a standby one reads at the archive
+  const researcherSpot = useMemo(() => {
+    if (list.some((a) => a.role === 'researcher' && a.status !== 'leaving')) return null;
+    const taken = new Set(list.map((a) => a.spot));
+    return PROPS.filter((p) => p.kind === 'archive').flatMap(spotIds).find((sp) => !taken.has(sp)) ?? null;
+  }, [list]);
+
   const meeting = useMeeting((s) => s.on);
-  const ceo = useCeoRounds(ceoWalking, meeting);
+  const pinTick = useOffice((s) => s.pinTick);
+  const alerts = useOffice((s) => s.board.filter((i) => i.state === 'alerting').length);
+  // handing the CEO a note (or a reminder coming due) sends them to the mission board
+  const errand = pinTick + alerts;
+  const ceo = useCeoRounds(ceoWalking, meeting, errand);
   // a meeting ends by itself, so nobody is stuck at the table if you forget it
   useEffect(() => {
     if (!meeting) return;
@@ -69,11 +99,13 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       return seat ? { spot: seat, activity: 'idle' as const } : { spot, activity };
     };
     const ceoAgent: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: ceo.spot, status: 'idle', activity: meeting ? 'delegating' : ceo.activity };
+    const standby: SceneAgent[] = researcherSpot ? [{ id: STANDBY_RESEARCHER, color: ROLE_COLOR.researcher, spot: researcherSpot, status: 'idle', activity: 'researching' }] : [];
     sceneRef.current?.setAgents([
       ceoAgent,
+      ...standby,
       ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], status: a.status, ...at(a.id, a.spot, a.activity) })),
     ]);
-  }, [list, ceo, meeting]);
+  }, [list, ceo, meeting, researcherSpot]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
@@ -149,13 +181,15 @@ export function OfficeView({ children }: { children?: ReactNode }) {
 
       {/* overhead tags, positioned by the scene every frame */}
       <div className="pointer-events-none absolute inset-0">
+        {!wallboard && <BoardHotspot />}
         <Tag id="ceo" name="You" sub="CEO" line={meeting ? 'Holding a meeting' : ceo.line} color={ROLE_COLOR.ceo} />
+        {researcherSpot && <Tag id={STANDBY_RESEARCHER} name="Researcher" sub="Standby" line="Ready to dig in" color={STATUS_COLOR.idle} />}
         {list.map((a) => (
           <AgentTag key={a.id} a={a} selected={a.id === selected} inMeeting={meeting && a.status !== 'blocked'} />
         ))}
       </div>
 
-      <CameraControls />
+      {!wallboard && <CameraControls />}
       {HELPER ? <Helper /> : children}
     </div>
   );

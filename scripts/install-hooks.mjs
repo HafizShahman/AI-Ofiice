@@ -53,7 +53,8 @@ function token() {
 // and the header below tells the server which copy is the one to hold.
 const HOLD = 'X-AI-Office-Hold';
 const officeConfig = JSON.parse(readFileSync(join(ROOT, 'office.config.json'), 'utf8'));
-const permissionTimeout = (officeConfig.approvals?.waitSec ?? 45) + 10;
+// --wait <sec> overrides office.config.json (Settings → Approvals saves the wait time in the app, not in the file)
+const permissionTimeout = (Number(opt('--wait', '')) || (officeConfig.approvals?.waitSec ?? 45)) + 10;
 
 const settings = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {};
 if (existsSync(settingsPath)) {

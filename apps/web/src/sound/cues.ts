@@ -42,9 +42,11 @@ function eventCue(e: OfficeEvent): void {
       cue('tool', 70, false, () => v.tool(e.tool, at(e.agentId)));
       break;
     case 'tool_fail':
+      scene?.flashProp('printer', 'fail');
       cue('fail', 300, true, v.fail);
       break;
     case 'task_done':
+      scene?.flashProp('bell', 'ring');
       cue('ping', 300, true, v.ping);
       break;
     case 'prompt':
@@ -89,6 +91,11 @@ function startCues(): () => void {
     }
     if (s.chat !== p.chat) chatCues(p.chat, s.chat);
     for (const id in s.approvals) if (!p.approvals[id]) cue('alert', 1500, true, v.alert);
+    // a reminder that has just come due (a snapshot is history: it re-syncs silently, and the banner still shows)
+    if (s.board !== p.board && s.epoch === p.epoch) {
+      const was = new Set(p.board.filter((i) => i.state === 'alerting').map((i) => i.id));
+      if (s.board.some((i) => i.state === 'alerting' && !was.has(i.id))) cue('reminder', 1000, true, v.reminder);
+    }
   });
   return unsub;
 }
@@ -131,4 +138,9 @@ export async function toggleSound(): Promise<void> {
 /** Feedback while dragging the volume slider. */
 export function previewVolume(): void {
   cue('preview', 150, true, v.hello);
+}
+
+/** Repeat the reminder chime while one is still unanswered. */
+export function playReminder(): void {
+  cue('reminder', 1000, true, v.reminder);
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AgentState, OfficeEvent } from '@ai-office/shared';
 import { ROLE_COLOR, ROLE_INITIALS, statusGroup, type StatusGroup } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
+import { usePrefs, useUi } from './prefs.ts';
 
 export function useNow(ms = 1000): number {
   const [now, setNow] = useState(Date.now());
@@ -25,12 +26,27 @@ export function clock(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export const timeOfDay = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+export const timeOfDay = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !usePrefs.getState().clock24 });
 
 /** Agents in roster order (lead first, then by arrival). */
 export function useAgentList(): AgentState[] {
   const agents = useOffice((s) => s.agents);
   return useMemo(() => Object.values(agents).sort((a, b) => Number(!!a.parentId) - Number(!!b.parentId) || a.startedAt - b.startedAt), [agents]);
+}
+
+/** Raw statuses in the order of the 1-8 keys. */
+export const STATUS_KEYS = ['arriving', 'working', 'blocked', 'idle', 'break', 'charging', 'done', 'leaving'] as const;
+
+/** Does the agent pass the roster filter (a status group or one raw status)? */
+export function matchesFilter(a: AgentState, f: string | null): boolean {
+  return !f || a.status === f || statusGroup(a) === f;
+}
+
+/** The roster: agents that pass the status filter. */
+export function useFilteredAgents(): AgentState[] {
+  const list = useAgentList();
+  const filter = useUi((s) => s.filter);
+  return useMemo(() => list.filter((a) => matchesFilter(a, filter)), [list, filter]);
 }
 
 export function useCounts(): Record<StatusGroup, number> & { doneToday: number } {

@@ -26,6 +26,7 @@ const AT: Record<string, { activity: Activity; line: string }> = {
   'ceo-servers': { activity: 'researching', line: 'Checking the servers' },
   'ceo-holo': { activity: 'thinking', line: 'At the holo-table' },
   'ceo-whiteboard': { activity: 'planning', line: 'At the whiteboard' },
+  'ceo-board': { activity: 'planning', line: 'At the mission board' },
   'ceo-coffee': { activity: 'coffee', line: 'Coffee break' },
   'ceo-comms': { activity: 'browsing', line: 'Checking comms' },
   'ceo-desks': { activity: 'idle', line: 'Checking on the team' },
@@ -49,14 +50,54 @@ const stopsAway = (from: string, visited: Set<string>) =>
  *   function: a new one each render would restart the rounds.
  * @param paused hold at the home spot (a meeting is on)
  */
-export function useCeoRounds(isWalking: () => boolean | null, paused = false): CeoState {
+export function useCeoRounds(isWalking: () => boolean | null, paused = false, errand = 0): CeoState {
   const [state, setState] = useState<CeoState>({ spot: HOME, ...(AT[HOME] ?? WATCHING) });
+  // the last errand run (or skipped); `errand` counts up each time something is handed to the CEO for the board
+  const [errandDone, setErrandDone] = useState(errand);
 
   useEffect(() => {
     // paused (a meeting): back to the holo-table and stay; the rounds start afresh when it ends
     if (paused) {
       setState({ spot: HOME, ...(AT[HOME] ?? WATCHING) });
+      setErrandDone(errand); // a note handed over during a meeting is pinned without the walk
       return;
+    }
+    // an errand: walk to the mission board, stay a few seconds to pin the note, then go back to the table
+    const board = errand > errandDone ? spotOf('ceo-board') : null;
+    if (errand > errandDone) {
+      if (!board) {
+        setErrandDone(errand);
+        return;
+      }
+      setState({ spot: board, activity: 'idle', line: 'Taking it to the mission board' });
+      let moved = false;
+      let arrived = false;
+      let since = performance.now();
+      const timer = window.setInterval(() => {
+        const now = performance.now();
+        const walking = document.hidden ? null : isWalking();
+        if (walking === null) {
+          since = now;
+          return;
+        }
+        if (walking) {
+          moved = true;
+          since = now;
+          return;
+        }
+        const still = (now - since) / 1000;
+        if (!arrived) {
+          if (!moved && still < 3) return;
+          arrived = true;
+          since = now;
+          setState({ spot: board, ...(AT['ceo-board'] ?? WATCHING) });
+          return;
+        }
+        if (still < 6) return;
+        setState({ spot: HOME, ...(AT[HOME] ?? WATCHING) });
+        setErrandDone(errand);
+      }, TICK_MS);
+      return () => window.clearInterval(timer);
     }
     let at = HOME;
     let left = 0; // stops left on this round before heading home
@@ -120,7 +161,7 @@ export function useCeoRounds(isWalking: () => boolean | null, paused = false): C
       setState({ spot, activity: 'idle', line: 'Making rounds' });
     }, TICK_MS);
     return () => window.clearInterval(timer);
-  }, [isWalking, paused]);
+  }, [isWalking, paused, errand, errandDone]);
 
   return state;
 }

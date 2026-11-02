@@ -52,3 +52,9 @@ body {
     animation: none !important;
   }
 }
+
+/* Settings → Scene → Reduce motion (the OS setting above does the same by default) */
+:root[data-reduce-motion] * {
+  animation: none !important;
+  transition: none !important;
+}

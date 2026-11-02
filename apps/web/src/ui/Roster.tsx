@@ -1,16 +1,29 @@
 import { chipLine, modelLine, statusGroup } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
-import { Avatar, useAgentList } from './util.tsx';
+import { useUi } from './prefs.ts';
+import { Avatar, useAgentList, useFilteredAgents } from './util.tsx';
 
 export function Roster() {
-  const list = useAgentList();
+  const all = useAgentList();
+  const list = useFilteredAgents();
+  const filter = useUi((s) => s.filter);
   const selected = useOffice((s) => s.selected);
 
   return (
     <nav aria-label="Roster" className="flex min-h-[64px] items-center gap-2 overflow-x-auto border-t border-border bg-[#0b1220] px-4 py-2">
       <span className="mr-2 font-mono text-[11px] tracking-[0.1em] text-muted">ROSTER</span>
-      {!list.length && <span className="text-[13px] text-muted">Nobody in the office yet.</span>}
+      {filter && (
+        <button
+          onClick={() => useUi.getState().setFilter(null)}
+          title="Show everyone (Esc)"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-2.5 pr-2 text-[12px] text-accent"
+        >
+          {filter} · {list.length}/{all.length}
+          <Icon name="x" size={12} />
+        </button>
+      )}
+      {!list.length && <span className="text-[13px] text-muted">{all.length ? `Nobody is ${filter} right now.` : 'Nobody in the office yet.'}</span>}
       {list.map((a) => {
         const g = statusGroup(a);
         const isSel = a.id === selected;

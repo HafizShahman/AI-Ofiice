@@ -31,6 +31,9 @@ export interface Pick {
   other?: string;
 }
 
+/** How long a read-only question stays on its card if the agent never reports moving on. */
+const SHOWN_MS = 10 * 60_000;
+
 interface Pending {
   approval: Approval;
   ask?: Ask;
@@ -51,7 +54,7 @@ function decisionFor(outcome: ApprovalOutcome, ask?: Ask, answers?: Record<strin
 
 export class Approvals {
   enabled: boolean;
-  readonly waitMs = (config.approvals?.waitSec ?? 45) * 1000;
+  waitMs = (config.approvals?.waitSec ?? 45) * 1000;
   private pending = new Map<string, Pending>();
   private push: (m: ServerMessage) => void;
   /** told about every outcome (for the chat line); `answers` = what you replied to a question */
@@ -62,6 +65,8 @@ export class Approvals {
   constructor(push: (m: ServerMessage) => void) {
     this.push = push;
     this.enabled = setting('approvals_enabled') === '1';
+    const wait = Number(setting('approvals_wait_sec'));
+    if (wait >= 5 && wait <= 300) this.waitMs = wait * 1000;
   }
 
   state(): ApprovalsState {
@@ -71,9 +76,16 @@ export class Approvals {
   setEnabled(on: boolean): void {
     this.enabled = on;
     saveSetting('approvals_enabled', on ? '1' : '0');
-    this.push({ type: 'approvals', enabled: on });
+    this.push({ type: 'approvals', enabled: on, waitSec: this.waitMs / 1000 });
     // turning it off releases anything still waiting back to the terminal
     if (!on) for (const p of [...this.pending.values()]) p.finish('terminal');
+  }
+
+  /** How long a request is held before it falls back to the terminal (5-300 s). Applies to new requests. */
+  setWaitSec(sec: number): void {
+    this.waitMs = Math.round(Math.min(300, Math.max(5, sec))) * 1000;
+    saveSetting('approvals_wait_sec', String(this.waitMs / 1000));
+    this.push({ type: 'approvals', enabled: this.enabled, waitSec: this.waitMs / 1000 });
   }
 
   /**
@@ -90,6 +102,26 @@ export class Approvals {
         this.finish(approval.id, 'answered');
       });
     });
+  }
+
+  /**
+   * A question the office saw but couldn't hold (off, no tab open, or the held hook never arrived): kept in
+   * memory so its card can show what is asked. You answer it in the terminal; it goes when the agent moves on.
+   */
+  show(e: OfficeEvent, questions: AskQuestion[]): void {
+    if ([...this.pending.values()].some((p) => p.approval.agentId === e.agentId)) return; // already held or shown
+    const now = Date.now();
+    const approval: Approval = { id: randomUUID(), agentId: e.agentId, tool: e.tool ?? 'AskUserQuestion', detail: questions[0].question.slice(0, 300), ts: now, expiresAt: now + SHOWN_MS, sim: false, questions, viewOnly: true };
+    const timer = setTimeout(() => this.finish(approval.id, 'answered'), SHOWN_MS);
+    this.pending.set(approval.id, {
+      approval,
+      finish: () => {
+        clearTimeout(timer);
+        this.pending.delete(approval.id);
+        this.push({ type: 'approval.done', id: approval.id, outcome: 'answered' });
+      },
+    });
+    this.push({ type: 'approval', approval });
   }
 
   /** A demo permission request: the buttons work, nothing real is approved. */
@@ -121,7 +153,7 @@ export class Approvals {
   /** The user clicked Allow / Deny / Answer in terminal. A question can only go back to the terminal or be answered. */
   decide(id: string, outcome: 'allow' | 'deny' | 'terminal'): Approval | null {
     const p = this.pending.get(id);
-    if (!p || (p.ask && outcome !== 'terminal')) return null;
+    if (!p || p.approval.viewOnly || (p.ask && outcome !== 'terminal')) return null;
     p.finish(outcome);
     return p.approval;
   }

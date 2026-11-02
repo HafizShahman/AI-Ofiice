@@ -10,12 +10,15 @@ import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
 import { askQuestions, normalize, permissionDetail, redact, type HookPayload } from './hooks.ts';
 import { Approvals } from './approvals.ts';
+import { Dispatcher } from './dispatch.ts';
+import { Board } from './board.ts';
 import { Office } from './state.ts';
 import { countEvents, pruneOld, recentEvents, saveEvent } from './db.ts';
 import { Sim } from './sim.ts';
 import { Chat, midnight, validChannel } from './chat.ts';
 import { ownSessions } from './manager.ts';
 import { ModelWatch } from './model.ts';
+import { settingsInfo } from './settings.ts';
 
 // ── realtime fan-out: batch changes and flush ~20×/s so event bursts don't flood the browser ──
 
@@ -45,6 +48,7 @@ const models = new ModelWatch({ known: (id) => Boolean(office.agents.get(id)?.mo
 const office = new Office({
   agent: (a) => {
     dirty.set(a.id, a);
+    if (a.cwd && !a.sessionId.startsWith('sim-')) dispatcher.remember(a.cwd);
     if (a.status === 'blocked' && lastStatus.get(a.id) !== 'blocked' && chat) {
       const what = a.tool ? ` · ${a.tool}${a.summary ? ` → ${a.summary}` : ''}` : '';
       const line =
@@ -66,6 +70,16 @@ const office = new Office({
 });
 
 const approvals = new Approvals((m) => outbox.push(m));
+const board = new Board((m) => outbox.push(m));
+const dispatcher: Dispatcher = new Dispatcher({
+  hasAgent: (id) => office.agents.has(id),
+  changed: () => outbox.push({ type: 'dispatch', dispatch: dispatcher.state() }),
+  finished: (r) => chat!.taskFinished(r),
+  noRobot: (id, project) =>
+    chat!.system(`dm:${id}`, `No robot has appeared for this task in \`${project}\`. It is running, but the office only sees it if the hooks are installed: run \`npm run install-hooks\`. Its answer will still land here.`, 'warn'),
+});
+process.on('exit', () => dispatcher.stopAll());
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(0));
 // once an agent moves on, a permission it was waiting on has been settled one way or another
 const SETTLES = new Set<OfficeEvent['kind']>(['tool_start', 'tool_end', 'tool_fail', 'turn_done', 'prompt', 'leave']);
 
@@ -83,11 +97,16 @@ function ingest(p: HookPayload) {
   if (!e) return;
   apply(e);
   if (e.kind !== 'leave') models.note(e.agentId, e.kind, p);
+  // a question the hold hook didn't catch (or can't hold) still gets its text on the agent's card
+  if (p.hook_event_name === 'PreToolUse' && p.tool_name === 'AskUserQuestion') {
+    const questions = askQuestions(p.tool_input ?? {});
+    if (questions) approvals.show(e, questions);
+  }
   if (approvals.enabled && p.hook_event_name === 'PermissionRequest' && e.sessionId.startsWith('sim-')) approvals.holdSim(e, permissionDetail(e.tool ?? '', p.tool_input ?? {}));
 }
 
 const sim = new Sim(ingest);
-chat = new Chat({ office, push: (m) => outbox.push(m), sim, setSim: (on) => setSim(on), approvals });
+chat = new Chat({ office, push: (m) => outbox.push(m), sim, setSim: (on) => setSim(on), approvals, dispatch: dispatcher, board });
 
 let warnedShort = 0;
 approvals.onShortHookTimeout = (question) => {
@@ -126,6 +145,8 @@ const snapshot = () => ({
   sim: sim.running,
   ai: chat!.ai,
   approvals: approvals.state(),
+  dispatch: dispatcher.state(),
+  board: board.items(),
   doneToday: countEvents('turn_done', midnight()),
 });
 
@@ -223,15 +244,18 @@ app.get('/api/chat/:channel', (c) => {
 
 app.post('/api/chat/:channel', async (c) => {
   const channel = c.req.param('channel');
-  const body = (await c.req.json().catch(() => ({}))) as { body?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { body?: string; tz?: number };
   if (!validChannel(channel) || typeof body.body !== 'string') return c.body(null, 400);
-  void chat!.handle(channel, body.body); // the reply arrives over the WebSocket
+  void chat!.handle(channel, body.body, typeof body.tz === 'number' && Math.abs(body.tz) <= 14 * 60 ? body.tz : undefined); // the reply arrives over the WebSocket
   return c.body(null, 202);
 });
 
+app.get('/api/settings', (c) => c.json(settingsInfo()));
+
 app.post('/api/approvals', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { enabled?: boolean };
-  approvals.setEnabled(body.enabled ?? !approvals.enabled);
+  const body = (await c.req.json().catch(() => ({}))) as { enabled?: boolean; waitSec?: number };
+  if (typeof body.waitSec === 'number' && Number.isFinite(body.waitSec)) approvals.setWaitSec(body.waitSec);
+  if (typeof body.waitSec !== 'number' || body.enabled !== undefined) approvals.setEnabled(body.enabled ?? !approvals.enabled);
   return c.json(approvals.state());
 });
 
@@ -246,9 +270,46 @@ app.post('/api/approvals/:id', async (c) => {
   return approvals.decide(c.req.param('id'), d) ? c.body(null, 204) : c.body(null, 404);
 });
 
+// Start a task (a new claude -p agent) in a known project folder; settings and stop
+app.post('/api/dispatch', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { task?: string; cwd?: string; channel?: string; enabled?: boolean; mode?: string; stop?: string };
+  if (typeof body.mode === 'string') dispatcher.setMode(body.mode);
+  if (typeof body.enabled === 'boolean') await dispatcher.setEnabled(body.enabled);
+  if (typeof body.stop === 'string') return c.json({ stopped: dispatcher.stop(body.stop) });
+  if (typeof body.task === 'string') {
+    const channel = typeof body.channel === 'string' && validChannel(body.channel) ? body.channel : 'office';
+    const r = chat!.dispatchTask(channel, body.task, typeof body.cwd === 'string' ? body.cwd : '');
+    return c.json(r, r.ok ? 202 : 400);
+  }
+  return c.json(dispatcher.state());
+});
+
+// The mission board: add, tick, dismiss, snooze, delete. A note added here is pinned by the CEO (board.pin).
+app.post('/api/board', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as { op?: string; id?: number; kind?: string; text?: string; due?: number; repeat?: string; minutes?: number };
+  const id = typeof b.id === 'number' ? b.id : -1;
+  switch (b.op) {
+    case 'add': {
+      if ((b.kind !== 'task' && b.kind !== 'reminder') || typeof b.text !== 'string') return c.body(null, 400);
+      const r = board.add(b.kind, b.text, { due: b.due, repeat: b.repeat === 'daily' || b.repeat === 'weekly' ? b.repeat : undefined });
+      return c.json(r, r.ok ? 200 : 400);
+    }
+    case 'toggle': board.toggle(id); break;
+    case 'ack': board.ack(id); break;
+    case 'snooze': board.snooze(id, Number(b.minutes)); break;
+    case 'delete': board.remove(id); break;
+    case 'clearDone': board.clearDone(); break;
+    default: return c.body(null, 400);
+  }
+  return c.json({ ok: true });
+});
+
 app.post('/api/ai', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean };
-  await chat!.setAi(body.on ?? !chat!.ai.enabled);
+  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean; model?: string; contextEvents?: number };
+  if (typeof body.model === 'string') chat!.setModel(body.model);
+  if (typeof body.contextEvents === 'number' && Number.isFinite(body.contextEvents)) chat!.setContextEvents(body.contextEvents);
+  // a request that only changes the model or context size leaves on/off alone
+  if (body.on !== undefined || (body.model === undefined && body.contextEvents === undefined)) await chat!.setAi(body.on ?? !chat!.ai.enabled);
   return c.json(chat!.ai);
 });
 

@@ -4,6 +4,7 @@ import { previewVolume, toggleSound } from '../sound/cues.ts';
 import { useDaylight, type Mode, type Phase } from '../scene/daylight.ts';
 import { setAi, toggleSim, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
+import { useUi } from './prefs.ts';
 import { useCounts } from './util.tsx';
 
 const chip = 'flex h-8 items-center gap-2 rounded-md border px-3 text-[13px]';
@@ -36,6 +37,7 @@ export function TopBar() {
   const ai = useOffice((s) => s.ai);
   const soundOn = useSound((s) => s.on);
   const volume = useSound((s) => s.volume);
+  const filter = useUi((s) => s.filter);
   const firstBlocked = useOffice((s) => Object.values(s.agents).find((a) => a.status === 'blocked')?.id);
 
   return (
@@ -52,13 +54,17 @@ export function TopBar() {
       )}
 
       <nav aria-label="Agent status counters" className="mx-auto flex flex-wrap gap-1.5">
-        <Counter n={c.working} label="Working" dot={<span className="size-2 rounded-full bg-accent" />} />
-        <Counter n={c.idle} label="Idle" dot={<span className="box-border size-2 rounded-full border-[1.5px] border-muted" />} />
+        <Counter n={c.working} label="Working" filter="working" dot={<span className="size-2 rounded-full bg-accent" />} />
+        <Counter n={c.idle} label="Idle" filter="idle" dot={<span className="box-border size-2 rounded-full border-[1.5px] border-muted" />} />
         <button
-          className={`${chip} ${c.blocked ? 'border-warning/55 bg-warning/8 text-warning' : 'border-border text-muted'}`}
-          disabled={!c.blocked}
-          onClick={() => firstBlocked && useOffice.getState().select(firstBlocked)}
-          title={c.blocked ? 'Show the blocked agent' : undefined}
+          className={`${chip} ${filter === 'blocked' ? 'ring-1 ring-warning' : ''} ${c.blocked ? 'border-warning/55 bg-warning/8 text-warning' : 'border-border text-muted'}`}
+          aria-pressed={filter === 'blocked'}
+          disabled={!c.blocked && filter !== 'blocked'}
+          onClick={() => {
+            useUi.getState().setFilter('blocked');
+            if (firstBlocked && filter !== 'blocked') useOffice.getState().select(firstBlocked);
+          }}
+          title="Filter the roster to blocked agents and show the first one"
         >
           <Icon name="hand" />
           <span className="font-mono tabular-nums">{c.blocked}</span>
@@ -118,6 +124,30 @@ export function TopBar() {
           )}
         </div>
         <button
+          aria-label="Command palette"
+          title="Command palette (⌘K)"
+          onClick={() => useUi.getState().setPalette(true)}
+          className="grid size-9 place-items-center rounded-md border border-border text-muted hover:text-text"
+        >
+          <Icon name="command" size={16} />
+        </button>
+        <button
+          aria-label="Wallboard mode"
+          title="Wallboard mode for a second monitor (F)"
+          onClick={() => useUi.getState().setWallboard(true)}
+          className="grid size-9 place-items-center rounded-md border border-border text-muted hover:text-text"
+        >
+          <Icon name="monitor" size={16} />
+        </button>
+        <button
+          aria-label="Settings"
+          title="Settings"
+          onClick={() => useUi.getState().setSettings(true)}
+          className="grid size-9 place-items-center rounded-md border border-border text-muted hover:text-text"
+        >
+          <Icon name="gear" size={16} />
+        </button>
+        <button
           aria-label={chatOpen ? 'Hide side panel' : 'Show side panel'}
           title="Toggle side panel (C)"
           aria-pressed={chatOpen}
@@ -139,12 +169,26 @@ export function TopBar() {
   );
 }
 
-function Counter({ n, label, dot }: { n: number; label: string; dot: ReactNode }) {
-  return (
-    <span className={`${chip} border-border`}>
+/** A counter; with `filter` it is a button that filters the roster to that status group. */
+function Counter({ n, label, dot, filter }: { n: number; label: string; dot: ReactNode; filter?: string }) {
+  const active = useUi((s) => s.filter);
+  const body = (
+    <>
       {dot}
       <span className="font-mono tabular-nums">{n}</span>
       <span className="text-muted">{label}</span>
-    </span>
+    </>
+  );
+  if (!filter) return <span className={`${chip} border-border`}>{body}</span>;
+  const on = active === filter;
+  return (
+    <button
+      onClick={() => useUi.getState().setFilter(filter)}
+      aria-pressed={on}
+      title={on ? 'Show everyone' : `Filter the roster to ${label.toLowerCase()} agents`}
+      className={`${chip} ${on ? 'border-accent bg-accent/10' : 'border-border hover:bg-surface-2'}`}
+    >
+      {body}
+    </button>
   );
 }

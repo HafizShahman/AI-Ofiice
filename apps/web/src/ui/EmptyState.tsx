@@ -13,8 +13,8 @@ export function EmptyState() {
 
   const cmd = `npm run install-hooks -- --url ${location.protocol}//${location.hostname}:3334/hook`;
   return (
-    <div data-ui className="absolute inset-0 grid place-items-center bg-[#070b14]/55 p-6">
-      <section aria-labelledby="setup-title" className="flex w-full max-w-[520px] flex-col gap-5 rounded-[14px] border border-border bg-surface p-7 shadow-[0_16px_48px_rgb(0_0_0/.55)]">
+    <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#070b14]/55 p-6">
+      <section data-ui aria-labelledby="setup-title" className="pointer-events-auto flex w-full max-w-[520px] flex-col gap-5 rounded-[14px] border border-border bg-surface p-7 shadow-[0_16px_48px_rgb(0_0_0/.55)]">
         <div className="flex flex-col gap-1.5">
           <span className="font-mono text-[11px] tracking-[0.1em] text-accent">SETUP</span>
           <h1 id="setup-title" className="m-0 text-[22px] font-semibold">

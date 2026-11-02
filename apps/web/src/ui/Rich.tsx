@@ -13,8 +13,8 @@ export function Rich({ text }: { text: string }) {
 
 function format(text: string, agents: AgentState[]): ReactNode[] {
   const out: ReactNode[] = [];
-  // split on `code` and **bold** spans
-  const re = /`([^`\n]+)`|\*\*([^*\n]+)\*\*/g;
+  // split on `code`, **bold** and Claude artifact links
+  const re = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|(https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+)/g;
   let last = 0;
   let k = 0;
   for (let m = re.exec(text); m; m = re.exec(text)) {
@@ -24,6 +24,12 @@ function format(text: string, agents: AgentState[]): ReactNode[] {
         <code key={`c${k++}`} className="rounded bg-[#070b14] px-1 py-px font-mono text-[12px] text-[#67e8f9]">
           {m[1]}
         </code>,
+      );
+    else if (m[3] != null)
+      out.push(
+        <a key={`a${k++}`} href={m[3]} target="_blank" rel="noreferrer" className="break-all text-accent underline underline-offset-2 hover:text-accent/80">
+          {m[3]}
+        </a>,
       );
     else out.push(<strong key={`b${k++}`}>{names(m[2], agents, k++)}</strong>);
     last = re.lastIndex;

@@ -17,10 +17,12 @@ export function ApprovalBox({ agentId, tone = 'card' }: { agentId: string; tone?
   const approval = useApprovalFor(agentId);
   const on = useOffice((s) => s.approvalsOn);
   const now = useNow(1000);
+  const asked = useOffice((s) => (s.agents[agentId]?.tool === 'AskUserQuestion' ? s.agents[agentId]?.summary : undefined));
 
   if (!approval)
     return (
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
+        {asked && <span className="basis-full text-[13px] text-text">“{asked}”</span>}
         <span>Answer it in the agent’s terminal.</span>
         {on ? (
           <span title="This request reached the office before it could be held (or came as a notification only)">Approving from the office is on.</span>
@@ -32,7 +34,7 @@ export function ApprovalBox({ agentId, tone = 'card' }: { agentId: string; tone?
       </div>
     );
 
-  if (approval.questions) return <QuestionBox key={approval.id} approval={approval} />;
+  if (approval.questions) return approval.viewOnly ? <QuestionView key={approval.id} approval={approval} /> : <QuestionBox key={approval.id} approval={approval} />;
 
   const left = Math.max(0, Math.ceil((approval.expiresAt - now) / 1000));
   const total = Math.max(1, (approval.expiresAt - approval.ts) / 1000);
@@ -70,6 +72,37 @@ export function ApprovalBox({ agentId, tone = 'card' }: { agentId: string; tone?
         <div className="h-full bg-warning transition-[width] duration-1000 ease-linear" style={{ width: `${(left / total) * 100}%` }} />
       </div>
       {approval.sim && tone !== 'toast' && <span className="text-[11px] text-muted">Demo request: answering it changes nothing real.</span>}
+    </div>
+  );
+}
+
+/**
+ * A question the office saw but couldn't hold (so it can't be answered from here): what is asked and the
+ * options, to read, with a pointer to the agent's terminal. It goes when the agent moves on.
+ */
+function QuestionView({ approval }: { approval: Approval }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {approval.questions!.map((q, qi) => (
+        <div key={qi} className="flex flex-col gap-1.5">
+          {(q.header || q.multiSelect) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {q.header && <span className="rounded border border-border px-1.5 font-mono text-[10px] uppercase tracking-wide text-muted">{q.header}</span>}
+              {q.multiSelect && <span className="text-[11px] text-muted">choose any</span>}
+            </div>
+          )}
+          <div className="whitespace-pre-line text-[13px] leading-snug text-text">{q.question}</div>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {q.options.map((o, oi) => (
+              <li key={oi} className="rounded-md border border-border px-2.5 py-1.5">
+                <span className="block text-[13px] text-text">{o.label}</span>
+                {o.description && <span className="block text-[12px] leading-snug text-muted">{o.description}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <div className="text-[12px] text-muted">Answer it in the agent’s terminal: the office couldn’t hold this one.</div>
     </div>
   );
 }

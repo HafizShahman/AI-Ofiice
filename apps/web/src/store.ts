@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentState, AiState, Approval, ChatMessage, OfficeEvent, ServerMessage } from '@ai-office/shared';
+import type { AgentState, AiState, Approval, BoardItem, DispatchState, ChatMessage, OfficeEvent, ServerMessage } from '@ai-office/shared';
 
 export type Connection = 'connecting' | 'open' | 'closed';
 
@@ -23,6 +23,11 @@ interface OfficeStore {
   approvalWaitSec: number;
   /** open permission requests by id */
   approvals: Record<string, Approval>;
+  dispatch: DispatchState;
+  /** the mission board's notes */
+  board: BoardItem[];
+  /** counts up each time a note is handed to the CEO to pin (the CEO walks to the board) */
+  pinTick: number;
   /** side-panel channel: "activity", "office" or "dm:<agentId>" */
   channel: string;
   chat: Record<string, ChatMessage[]>;
@@ -41,6 +46,9 @@ interface OfficeStore {
 
 const MAX_EVENTS = 300;
 
+/** `?channel=activity|office|dm:<agentId>` deep link (the channel is mirrored back to the URL). */
+const linkedChannel = new URLSearchParams(location.search).get('channel');
+
 export const useOffice = create<OfficeStore>((set) => ({
   connection: 'connecting',
   retries: 0,
@@ -52,17 +60,24 @@ export const useOffice = create<OfficeStore>((set) => ({
   selected: new URLSearchParams(location.search).get('agent'),
   following: false,
   chatOpen: true,
-  ai: { enabled: false, model: 'haiku', available: null },
+  ai: { enabled: false, model: 'haiku', contextEvents: 30, available: null },
   doneToday: 0,
   approvalsOn: false,
   approvalWaitSec: 45,
   approvals: {},
-  channel: 'office',
+  board: [],
+  pinTick: 0,
+  dispatch: { enabled: false, mode: 'plan', projects: [], last: null, running: [], available: null },
+  channel: linkedChannel && /^(activity|office|dm:.+)$/.test(linkedChannel) ? linkedChannel : 'office',
   chat: {},
   typing: {},
   unread: {},
   focusTick: 0,
   openChannel: (channel, focus = false) => {
+    const url = new URL(location.href);
+    if (channel === 'office') url.searchParams.delete('channel');
+    else url.searchParams.set('channel', channel);
+    history.replaceState(null, '', url);
     set((s) => ({ channel, chatOpen: true, unread: { ...s.unread, [channel]: 0 }, focusTick: focus ? s.focusTick + 1 : s.focusTick }));
     if (channel !== 'activity' && !useOffice.getState().chat[channel]) void loadChannel(channel);
   },
@@ -80,7 +95,7 @@ export const useOffice = create<OfficeStore>((set) => ({
   // one store update per server batch, so event bursts don't cause a render per event
   apply: (msgs) =>
     set((s) => {
-      let { agents, events, sim, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec } = s;
+      let { agents, events, sim, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec, dispatch, board, pinTick } = s;
       let { epoch } = s;
       let reload = false;
       for (const m of msgs) {
@@ -92,6 +107,8 @@ export const useOffice = create<OfficeStore>((set) => ({
           sim = m.state.sim;
           ai = m.state.ai;
           doneToday = m.state.doneToday;
+          dispatch = m.state.dispatch;
+          board = m.state.board;
           approvalsOn = m.state.approvals.enabled;
           approvalWaitSec = m.state.approvals.waitSec;
           approvals = Object.fromEntries(m.state.approvals.pending.map((a) => [a.id, a]));
@@ -111,8 +128,15 @@ export const useOffice = create<OfficeStore>((set) => ({
           sim = m.on;
         } else if (m.type === 'ai') {
           ai = m.ai;
+        } else if (m.type === 'board') {
+          board = m.items;
+        } else if (m.type === 'board.pin') {
+          pinTick++;
+        } else if (m.type === 'dispatch') {
+          dispatch = m.dispatch;
         } else if (m.type === 'approvals') {
           approvalsOn = m.enabled;
+          approvalWaitSec = m.waitSec;
         } else if (m.type === 'approval') {
           approvals = { ...approvals, [m.approval.id]: m.approval };
         } else if (m.type === 'approval.done') {
@@ -132,7 +156,7 @@ export const useOffice = create<OfficeStore>((set) => ({
       }
       const selected = s.selected && !agents[s.selected] && s.selected !== 'ceo' ? null : s.selected;
       if (reload && s.channel !== 'activity') queueMicrotask(() => void loadChannel(s.channel));
-      return { epoch, agents, events, sim, selected, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec };
+      return { epoch, agents, events, sim, selected, names, ai, doneToday, chat, typing, unread, approvals, approvalsOn, approvalWaitSec, dispatch, board, pinTick };
     }),
 }));
 
@@ -182,7 +206,7 @@ export async function loadChannel(channel: string): Promise<void> {
 }
 
 export async function sendChat(channel: string, body: string): Promise<void> {
-  await fetch(`/api/chat/${encodeURIComponent(channel)}`, { ...JSON_POST, body: JSON.stringify({ body }) });
+  await fetch(`/api/chat/${encodeURIComponent(channel)}`, { ...JSON_POST, body: JSON.stringify({ body, tz: new Date().getTimezoneOffset() }) });
 }
 
 export async function setAi(on: boolean): Promise<void> {
@@ -193,6 +217,14 @@ export async function setApprovals(enabled: boolean): Promise<void> {
   await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ enabled }) });
 }
 
+export async function setApprovalWait(waitSec: number): Promise<void> {
+  await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ waitSec }) });
+}
+
+export async function setAiOptions(opts: { model?: string; contextEvents?: number }): Promise<void> {
+  await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify(opts) });
+}
+
 /** Answer a held AskUserQuestion: per question, the chosen option indexes and/or free text. */
 export async function answerQuestions(id: string, answers: { picked: number[]; other?: string }[]): Promise<void> {
   await fetch(`/api/approvals/${encodeURIComponent(id)}`, { ...JSON_POST, body: JSON.stringify({ decision: 'answer', answers }) });
@@ -200,4 +232,35 @@ export async function answerQuestions(id: string, answers: { picked: number[]; o
 
 export async function decideApproval(id: string, decision: 'allow' | 'deny' | 'terminal'): Promise<void> {
   await fetch(`/api/approvals/${encodeURIComponent(id)}`, { ...JSON_POST, body: JSON.stringify({ decision }) });
+}
+
+/** Start a task: a new agent in a known project folder. Opens its DM on success; resolves to an error text or null. */
+export async function sendTask(task: string, cwd: string, channel: string): Promise<string | null> {
+  const r = await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ task, cwd, channel }) });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; id?: string };
+  if (!r.ok || !j.ok || !j.id) return j.error ?? 'Could not start the task.';
+  useOffice.getState().openChannel(`dm:${j.id}`);
+  return null;
+}
+
+export async function setDispatch(opts: { enabled?: boolean; mode?: 'plan' | 'acceptEdits' }): Promise<void> {
+  await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify(opts) });
+}
+
+export async function stopTask(id: string): Promise<void> {
+  await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ stop: id }) });
+}
+
+export type BoardOp =
+  | { op: 'add'; kind: 'task'; text: string }
+  | { op: 'add'; kind: 'reminder'; text: string; due: number; repeat?: 'daily' | 'weekly' }
+  | { op: 'toggle' | 'ack' | 'delete'; id: number }
+  | { op: 'snooze'; id: number; minutes: number }
+  | { op: 'clearDone' };
+
+/** A change to the mission board. Resolves to an error text, or null when it worked. */
+export async function boardOp(body: BoardOp): Promise<string | null> {
+  const r = await fetch('/api/board', { ...JSON_POST, body: JSON.stringify(body) });
+  if (r.ok) return null;
+  return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not change the board.';
 }

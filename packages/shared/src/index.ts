@@ -118,6 +118,39 @@ export interface StateSnapshot {
   /** turn_done events since local midnight */
   doneToday: number;
   approvals: ApprovalsState;
+  dispatch: DispatchState;
+  board: BoardItem[];
+}
+
+/**
+ * One note on the mission board. Tasks are open or done; reminders have a due time and go
+ * `alerting` when it arrives, until you dismiss, snooze or complete them.
+ */
+export interface BoardItem {
+  id: number;
+  kind: 'task' | 'reminder';
+  text: string;
+  state: 'open' | 'alerting' | 'done';
+  /** reminders: when it fires (ms since epoch) */
+  due?: number;
+  repeat?: 'daily' | 'weekly';
+  createdAt: number;
+  doneAt?: number;
+}
+
+/** Tasks started from the office: a new `claude -p` agent in a project folder (opt-in). */
+export interface DispatchState {
+  enabled: boolean;
+  /** what a dispatched agent may do: plan = read and investigate only, acceptEdits = may also edit files */
+  mode: 'plan' | 'acceptEdits';
+  /** folders the office has seen agents work in: the only places a task can run */
+  projects: { path: string; name: string }[];
+  /** the folder used last, preselected in the composer */
+  last: string | null;
+  /** tasks still running (their agent's DM channel is dm:<id>) */
+  running: { id: string; task: string; project: string; startedAt: number }[];
+  /** null = not checked yet; false = the `claude` command could not be run */
+  available: boolean | null;
 }
 
 /** A permission request held open so you can answer it from the office (opt-in). */
@@ -133,6 +166,8 @@ export interface Approval {
   sim: boolean;
   /** AskUserQuestion: what is being asked, to answer from the office (memory only, never stored) */
   questions?: AskQuestion[];
+  /** the question reached the office but couldn't be held: shown to read, answered in the terminal */
+  viewOnly?: boolean;
 }
 
 /** One question of an AskUserQuestion call, tidied for display. Answers go back by option index. */
@@ -158,6 +193,8 @@ export interface ApprovalsState {
 export interface AiState {
   enabled: boolean;
   model: string;
+  /** how many recent events the manager is shown */
+  contextEvents: number;
   /** null = not checked yet; false = the `claude` command could not be run */
   available: boolean | null;
 }
@@ -177,6 +214,15 @@ export interface ChatMessage {
   tone?: 'info' | 'warn' | 'fail' | 'ok';
   /** agent the line is about (click flies the camera there) */
   agentId?: string;
+  /** a page the manager published (card with the link and the source) */
+  artifact?: ArtifactRef;
+}
+
+export interface ArtifactRef {
+  title: string;
+  url: string;
+  /** the page's HTML as written (capped), so the source can be read in the chat */
+  html?: string;
 }
 
 /** Server → browser over /ws */
@@ -190,6 +236,21 @@ export type ServerMessage =
   | { type: 'chat.clear'; channel: string }
   | { type: 'typing'; channel: string; on: boolean }
   | { type: 'ai'; ai: AiState }
-  | { type: 'approvals'; enabled: boolean }
+  | { type: 'dispatch'; dispatch: DispatchState }
+  | { type: 'board'; items: BoardItem[] }
+  /** something was just added: the CEO walks to the board to pin it */
+  | { type: 'board.pin'; id: number }
+  | { type: 'approvals'; enabled: boolean; waitSec: number }
   | { type: 'approval'; approval: Approval }
   | { type: 'approval.done'; id: string; outcome: ApprovalOutcome };
+
+/** What GET /api/settings reports: read-only facts the settings drawer shows. */
+export interface SettingsInfo {
+  version: string;
+  /** whether AI Office hooks were found in a Claude Code settings file the server can read (null = can't see ~/.claude) */
+  hooks: { installed: boolean | null; file: string | null; url: string | null; permissionTimeoutSec: number | null };
+  roles: { role: string; match: string }[];
+  timers: { idleAfterSec: number; breakAfterSec: number; chargeAfterSec: number; staleAfterSec: number; doneHoldSec: number };
+  desks: number;
+  models: string[];
+}

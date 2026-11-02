@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Activity, AgentStatus } from '@ai-office/shared';
+import type { Anchor } from './anchors.ts';
 import { DOOR, onLayoutChange, px, ROOM_H, ROOM_W, spotInfo, spriteList, artUrl, type Pt, type SpotInfo } from './layout.ts';
 import { currentHour, useDaylight } from './daylight.ts';
 import { DAY_ORDER, DayNight } from './DayNight.ts';
@@ -82,6 +83,9 @@ interface SpriteObj {
   footPx: Pt;
   idle: THREE.Texture;
   busy?: THREE.Texture;
+  fail?: THREE.Texture;
+  failUntil?: number;
+  ringUntil?: number;
 }
 
 export class OfficeScene {
@@ -120,6 +124,8 @@ export class OfficeScene {
 
   /** @param tags DOM tags the React overlay registers; positioned over the robots every frame */
   readonly tags: Map<string, HTMLElement>;
+  /** DOM elements pinned to a place in the room (the mission board hotspot) */
+  anchors = new Map<string, Anchor>();
 
   constructor(canvas: HTMLCanvasElement, tags: Map<string, HTMLElement>) {
     this.tags = tags;
@@ -233,7 +239,7 @@ export class OfficeScene {
       mesh.position.set(footPx[0], -footPx[1], 0);
       mesh.renderOrder = ((s.z ?? s.foot[1]) / 100) * ROOM_H;
       this.scene.add(mesh);
-      this.sprites.push({ mesh, propId: s.propId, footPx, idle, busy: s.busySprite ? this.loadTex(artUrl(s.busySprite)) : undefined });
+      this.sprites.push({ mesh, propId: s.propId, footPx, idle, busy: s.busySprite ? this.loadTex(artUrl(s.busySprite)) : undefined, fail: s.failSprite ? this.loadTex(artUrl(s.failSprite)) : undefined });
     }
     this.dirty = true;
   }
@@ -395,17 +401,40 @@ export class OfficeScene {
     this.dirty = true;
   }
 
-  private updateSprites(): void {
+  /** Living details: 'fail' shows a prop's broken sprite for a few seconds, 'ring' swings it (the bell). */
+  flashProp(propId: string, kind: 'fail' | 'ring'): void {
+    const now = performance.now();
     for (const s of this.sprites) {
-      if (!s.busy) continue;
-      const busy = [...this.bots.values()].some(
-        (b) => !b.path.length && !b.removing && b.target.propId === s.propId && b.target.face?.[0] === s.footPx[0] && b.target.face?.[1] === s.footPx[1],
-      );
+      if (s.propId !== propId) continue;
+      if (kind === 'fail' && s.fail) s.failUntil = now + 6000;
+      if (kind === 'ring') s.ringUntil = now + 1800;
+    }
+    this.dirty = true;
+  }
+
+  private updateSprites(): void {
+    const now = performance.now();
+    for (const s of this.sprites) {
       const mat = s.mesh.material as THREE.MeshBasicMaterial;
-      const want = busy ? s.busy : s.idle;
+      const failing = !!s.fail && (s.failUntil ?? 0) > now;
+      if (s.ringUntil !== undefined) {
+        const left = s.ringUntil - now;
+        s.mesh.rotation.z = left > 0 ? Math.sin(now / 55) * 0.16 * (left / 1800) : 0;
+        if (left <= 0) s.ringUntil = undefined;
+        this.dirty = true;
+      }
+      if (failing) this.dirty = true;
+      if (!s.busy && !s.fail) continue;
+      const busy =
+        !!s.busy &&
+        [...this.bots.values()].some(
+          (b) => !b.path.length && !b.removing && b.target.propId === s.propId && b.target.face?.[0] === s.footPx[0] && b.target.face?.[1] === s.footPx[1],
+        );
+      const want = failing ? s.fail! : busy ? s.busy! : s.idle;
       if (mat.map !== want) {
         mat.map = want;
         mat.needsUpdate = true;
+        this.dirty = true;
       }
     }
   }
@@ -421,6 +450,41 @@ export class OfficeScene {
   }
 
   private userMoved = false;
+
+  /** Cap the canvas resolution (settings: Low 1×, Medium 1.5×, High 2×). */
+  setPixelRatioCap(cap: number): void {
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+    this.renderer.setSize(this.w, this.h, false);
+    this.dirty = true;
+  }
+
+  /** With this on the camera jumps to its target instead of flying there. */
+  reduceMotion = false;
+
+  private touring = false;
+  private tourT = 0;
+
+  /** Wallboard mode: the camera drifts slowly around the room. Off: back to the whole-room view. */
+  setTour(on: boolean): void {
+    if (on === this.touring) return;
+    this.touring = on;
+    this.tourT = 0;
+    if (on) this.following = null;
+    else this.fit();
+    this.dirty = true;
+  }
+
+  private tourStep(dt: number): void {
+    this.tourT += dt;
+    const t = this.tourT;
+    const z = this.fitZoom();
+    this.viewTarget = {
+      cx: ROOM_W / 2 + Math.sin(t * 0.045) * ROOM_W * 0.2,
+      cy: ROOM_H * 0.52 + Math.sin(t * 0.032 + 1) * ROOM_H * 0.13,
+      zoom: z * (1.45 + 0.3 * Math.sin(t * 0.027 + 2)),
+    };
+    this.userMoved = true;
+  }
 
   /** Zoom so the whole room fits. */
   fit(jump = false): void {
@@ -562,7 +626,8 @@ export class OfficeScene {
         this.viewTarget.cy = b.pos[1] - ROBOT_H * 0.4;
       } else this.following = null;
     }
-    const k = 1 - Math.exp(-dt * 7);
+    if (this.touring && !this.following) this.tourStep(dt);
+    const k = this.reduceMotion ? 1 : 1 - Math.exp(-dt * 7);
     const v = this.view;
     const t = this.viewTarget;
     const camMoving = Math.abs(t.cx - v.cx) + Math.abs(t.cy - v.cy) > 0.3 || Math.abs(t.zoom - v.zoom) > 1e-4;
@@ -583,9 +648,25 @@ export class OfficeScene {
     cam.updateProjectionMatrix();
     this.renderer.render(this.scene, cam);
     this.placeTags();
+    this.placeAnchors();
     if (this.overlay) this.overlay.style.transform = `translate(${this.w / 2 - v.cx * v.zoom}px, ${this.h / 2 - v.cy * v.zoom}px) scale(${v.zoom})`;
     if (camMoving) this.onViewChange?.(v);
   };
+
+  private placeAnchors(): void {
+    const z = this.view.zoom;
+    for (const { el, rx, ry, w, h } of this.anchors.values()) {
+      const [sx, sy] = this.toScreen(rx, ry);
+      const off = sx < -400 || sx > this.w + 400 || sy < -400 || sy > this.h + 400;
+      el.style.display = off ? 'none' : '';
+      if (off) continue;
+      if (w && h) {
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+        el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translate(-50%, -50%) scale(${z.toFixed(4)})`;
+      } else el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translate(-50%, -100%)`;
+    }
+  }
 
   private placeTags(): void {
     for (const [id, el] of this.tags) {

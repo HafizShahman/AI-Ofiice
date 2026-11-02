@@ -27,6 +27,13 @@ export function alert(): void {
   }
 }
 
+/** A reminder is due: three rising bell strikes, clearly different from the agents' two-note ping. */
+export function reminder(): void {
+  bell(880, 0, 0.9, 0.2);
+  bell(1109, 0.22, 0.9, 0.22);
+  bell(1319, 0.44, 1.6, 0.26);
+}
+
 /** A turn finished: the bell prop. */
 export function done(): void {
   bell(988, 0, 0.6, 0.18);
@@ -132,6 +139,7 @@ export const AT_PROP: Record<string, (fx: Fx) => void> = {
   'ceo-holo': holo,
   whiteboard: marker,
   'ceo-whiteboard': marker,
+  'ceo-board': marker,
   comms: comms,
   'ceo-comms': comms,
   archive: drawer,

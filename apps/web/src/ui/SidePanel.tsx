@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentState, ChatMessage, OfficeEvent } from '@ai-office/shared';
+import type { AgentState, ArtifactRef, ChatMessage, OfficeEvent } from '@ai-office/shared';
 import { activityLine, asking, ROLE_COLOR, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
-import { sendChat, setAi, useOffice } from '../store.ts';
+import { sendChat, sendTask, setAi, stopTask, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { Rich } from './Rich.tsx';
 import { ApprovalBox } from './Approval.tsx';
+import { usePrefs } from './prefs.ts';
 import { Avatar, describe, timeOfDay, useAgentList, verb } from './util.tsx';
 
 const TONE = {
@@ -19,6 +20,12 @@ const COMMANDS = [
   ['/status', 'office summary'],
   ['/agents', 'who is here'],
   ['/who ', 'find by role or name'],
+  ['/todo ', 'the CEO pins a task on the mission board'],
+  ['/remind ', 'a reminder: in 20m · at 15:30 · tomorrow 9am'],
+  ['/board', 'list the mission board'],
+  ['/task ', 'start a new agent on a task'],
+  ['/tasks on', 'allow tasks from the office'],
+  ['/tasks stop', 'stop running tasks'],
   ['/ai on', 'turn the Office Manager on'],
   ['/ai off', 'turn it off'],
   ['/sim', 'start or stop the demo'],
@@ -28,12 +35,14 @@ const COMMANDS = [
 
 /** Channels (#office, #activity), one DM per robot, and the composer. UI-PLAN §4 / PLAN §10. */
 export function SidePanel() {
+  usePrefs((s) => s.clock24); // timestamps follow the 12/24 h setting
   const channel = useOffice((s) => s.channel);
   const unread = useOffice((s) => s.unread);
   const events = useOffice((s) => s.events);
   const list = useAgentList();
   const dmAgent = useOffice((s) => (channel.startsWith('dm:') ? s.agents[channel.slice(3)] : undefined));
   const dmName = useOffice((s) => (channel.startsWith('dm:') ? s.names[channel.slice(3)] : undefined));
+  const dmTask = useOffice((s) => (channel.startsWith('dm:') ? s.dispatch.running.find((r) => r.id === channel.slice(3)) : undefined));
   const open = (c: string) => useOffice.getState().openChannel(c);
   const activityCount = useMemo(() => events.filter((e) => e.kind !== 'tool_end' && e.kind !== 'tool_start').length, [events]);
 
@@ -79,13 +88,20 @@ export function SidePanel() {
           ) : (
             <>
               {dmAgent && <Avatar a={dmAgent} size={22} />}
-              <span className="truncate text-[15px] font-semibold">{dmAgent?.name ?? dmName ?? 'Agent'}</span>
+              <span className="truncate text-[15px] font-semibold">{dmAgent?.name ?? dmName ?? (dmTask ? `Task · ${dmTask.project}` : 'Agent')}</span>
               {dmAgent ? (
                 <span className="truncate font-mono text-[11px]" style={{ color: STATUS_COLOR[statusGroup(dmAgent)] }}>
                   {activityLine(dmAgent)}
                 </span>
+              ) : dmTask ? (
+                <span className="text-[12px] text-muted">starting…</span>
               ) : (
                 <span className="text-[12px] text-muted">left the office</span>
+              )}
+              {dmTask && (
+                <button onClick={() => void stopTask(dmTask.id)} className="ml-auto shrink-0 rounded border border-border px-2 py-0.5 text-[11px] text-muted hover:text-danger">
+                  Stop task
+                </button>
               )}
             </>
           )}
@@ -316,10 +332,38 @@ function Message({ m }: { m: ChatMessage }) {
           </span>
           <span className="font-mono text-[11px] text-muted">{timeOfDay(m.ts)}</span>
         </div>
-        <div className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] leading-normal">
-          <Rich text={m.body} />
-        </div>
+        {m.artifact ? (
+          <ArtifactCard a={m.artifact} />
+        ) : (
+          <div className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] leading-normal">
+            <Rich text={m.body} />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** A page the Office Manager published: title, a link to open it, and its source on demand. */
+function ArtifactCard({ a }: { a: ArtifactRef }) {
+  const [source, setSource] = useState(false);
+  return (
+    <div className="mt-1 overflow-hidden rounded-lg border border-accent-2/40 bg-surface-2">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Icon name="sparkle" size={14} />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{a.title}</span>
+        {a.html && (
+          <button className="shrink-0 rounded px-1.5 py-0.5 text-[12px] text-muted hover:bg-surface hover:text-text" onClick={() => setSource((v) => !v)}>
+            {source ? 'Hide source' : 'View source'}
+          </button>
+        )}
+        <a href={a.url} target="_blank" rel="noreferrer" className="shrink-0 rounded px-1.5 py-0.5 text-[12px] font-medium text-accent hover:bg-accent/10">
+          Open
+        </a>
+      </div>
+      {source && a.html && (
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all border-t border-border bg-[#070b14] p-3 font-mono text-[11.5px] leading-normal text-[#67e8f9]">{a.html}</pre>
+      )}
     </div>
   );
 }
@@ -348,19 +392,42 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const ai = useOffice((s) => s.ai);
   const focusTick = useOffice((s) => s.focusTick);
+  const dispatch = useOffice((s) => s.dispatch);
   useEffect(() => {
     if (focusTick) ref.current?.focus();
   }, [focusTick]);
+
+  // Task mode: the text starts a NEW agent in a known project instead of asking the Office Manager
+  const [taskMode, setTaskMode] = useState(false);
+  const [cwd, setCwd] = useState('');
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const known = dispatch.projects.map((p) => p.path);
+  const chosen = known.includes(cwd) ? cwd : agent && known.includes(agent.cwd) ? agent.cwd : dispatch.last && known.includes(dispatch.last) ? dispatch.last : (known[0] ?? '');
+  const canTask = dispatch.enabled;
+  const tasking = taskMode && canTask;
 
   const suggestions = text.startsWith('/') && !text.includes('\n') ? COMMANDS.filter(([c]) => c.startsWith(text.split(' ')[0]) && c !== text) : [];
   const send = () => {
     const body = text.trim();
     if (!body) return;
+    if (tasking) {
+      if (!chosen) return setTaskError('No project yet: start Claude Code in a folder once so the office knows it.');
+      setTaskError(null);
+      void sendTask(body, chosen, channel).then((err) => {
+        if (err) setTaskError(err);
+        else {
+          setText('');
+          setTaskMode(false);
+        }
+      });
+      return;
+    }
     void sendChat(channel, body);
     setText('');
   };
-  const placeholder =
-    channel === 'office'
+  const placeholder = tasking
+    ? 'Describe the task for a new agent…'
+    : channel === 'office'
       ? ai.enabled
         ? 'Message #office — / for commands'
         : 'AI is off · /status, /agents, /ai on'
@@ -389,12 +456,40 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
           ))}
         </ul>
       )}
-      <div className="flex items-end gap-2 rounded-[10px] border border-border bg-surface px-3 py-2 focus-within:border-accent/60">
+      {canTask && (
+        <div className="mb-2 flex items-center gap-2 text-[12px]">
+          <div role="group" aria-label="Send as" className="flex overflow-hidden rounded-md border border-border">
+            <button onClick={() => setTaskMode(false)} aria-pressed={!tasking} className={`px-2.5 py-1 ${!tasking ? 'bg-surface-2 text-text' : 'text-muted hover:text-text'}`}>
+              Ask
+            </button>
+            <button onClick={() => setTaskMode(true)} aria-pressed={tasking} className={`px-2.5 py-1 ${tasking ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'}`}>
+              Task
+            </button>
+          </div>
+          {tasking && (
+            <>
+              <select aria-label="Project" value={chosen} onChange={(e) => setCwd(e.target.value)} className="min-w-0 flex-1 truncate rounded border border-border bg-surface px-1.5 py-1">
+                {!dispatch.projects.length && <option value="">no project yet</option>}
+                {dispatch.projects.map((p) => (
+                  <option key={p.path} value={p.path} title={p.path}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <span className="shrink-0 text-muted" title={dispatch.mode === 'plan' ? 'The agent can read and investigate but changes nothing' : 'The agent may edit files in the project'}>
+                {dispatch.mode === 'plan' ? 'read-only' : 'can edit'}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+      {taskError && <p role="alert" className="mb-2 text-[12px] text-warning">{taskError}</p>}
+      <div className={`flex items-end gap-2 rounded-[10px] border bg-surface px-3 py-2 ${tasking ? 'border-accent/50' : 'border-border'} focus-within:border-accent/60`}>
         <textarea
           ref={ref}
           rows={1}
           value={text}
-          disabled={channel !== 'office' && !agent}
+          disabled={channel !== 'office' && !agent && !tasking}
           placeholder={placeholder}
           aria-label={`Message ${channel === 'office' ? '#office' : (agent?.name ?? 'agent')}`}
           onChange={(e) => {
@@ -426,7 +521,7 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
         </button>
       </div>
       <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted">
-        <span>Enter to send · Shift+Enter new line</span>
+        <span>{tasking ? 'Enter starts a new agent in the project' : 'Enter to send · Shift+Enter new line'}</span>
         {channel === 'office' && (
           <button onClick={() => void setAi(!ai.enabled)} className="hover:text-text" title={ai.available === false ? 'The claude command was not found on the server machine' : undefined}>
             AI {ai.enabled ? `on · ${ai.model}` : 'off'}

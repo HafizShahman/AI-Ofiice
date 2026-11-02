@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import type { Activity, AgentStatus } from '@ai-office/shared';
 import { DOOR, onLayoutChange, px, ROOM_H, ROOM_W, spotInfo, spriteList, artUrl, type Pt, type SpotInfo } from './layout.ts';
+import { currentHour, useDaylight } from './daylight.ts';
+import { DAY_ORDER, DayNight } from './DayNight.ts';
 import { findPath, type Level, type Waypoint } from './nav.ts';
 import { loadRobot, RobotRig, type Pose, type RigTemplate } from './robot.ts';
+import { WallClock } from './WallClock.ts';
 
 /**
  * The isometric office. Everything lives in "room space" (pixels of the 2400×1792 room image,
@@ -102,6 +105,11 @@ export class OfficeScene {
   private texCache = new Map<string, THREE.Texture>();
   private spriteQuad = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0); // origin at bottom-centre
   private offLayout: () => void;
+  private dayNight: DayNight;
+  private wallClock: WallClock;
+  private bgMat!: THREE.MeshBasicMaterial;
+  /** the painted day backdrop (public/art/room-day.webp), when there is one; crossfaded by daylight */
+  private bgDayMat: THREE.MeshBasicMaterial | null = null;
   onViewChange?: (v: CameraView) => void;
   /** a robot's foot lands while walking */
   onStep?: (id: string, at: Spatial) => void;
@@ -121,16 +129,19 @@ export class OfficeScene {
     this.renderer.sortObjects = true;
     this.camera.position.set(0, 0, 10000);
 
-    this.scene.add(new THREE.HemisphereLight(0xd7f3ff, 0x1b2436, 2.1));
+    // the robots' lights; DayNight re-colours them through the day
+    const hemi = new THREE.HemisphereLight(0xd7f3ff, 0x1b2436, 2.1);
     const key = new THREE.DirectionalLight(0xffffff, 2.4);
     key.position.set(-0.6, 1, 1.2);
-    this.scene.add(key);
     const rim = new THREE.DirectionalLight(0x22d3ee, 1.1);
     rim.position.set(1, 0.4, -1);
-    this.scene.add(rim);
+    this.scene.add(hemi, key, rim);
+    this.dayNight = new DayNight(this.scene, { hemi, key, rim });
+    this.wallClock = new WallClock(this.scene);
 
     this.buildRoom();
     this.buildSprites();
+    this.updateLight(0);
     this.offLayout = onLayoutChange(() => {
       this.buildSprites();
       // spots may have moved: send everyone to where their spot is now
@@ -180,14 +191,28 @@ export class OfficeScene {
   }
 
   private buildRoom(): void {
-    const bg = new THREE.Mesh(
-      new THREE.PlaneGeometry(ROOM_W, ROOM_H),
-      new THREE.MeshBasicMaterial({ map: this.loadTex('/art/room.webp'), depthTest: false, depthWrite: false, transparent: true }),
-    );
+    this.bgMat = new THREE.MeshBasicMaterial({ map: this.loadTex('/art/room.webp'), depthTest: false, depthWrite: false, transparent: true });
+    const bg = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), this.bgMat);
     bg.position.set(ROOM_W / 2, -ROOM_H / 2, -100);
     bg.renderOrder = -1e6;
     this.scene.add(bg);
 
+    // optional painted daytime backdrop, same size and camera: fades in over the night one
+    new THREE.TextureLoader().load(
+      '/art/room-day.webp',
+      (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        this.bgDayMat = new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false, transparent: true, opacity: 0 });
+        const day = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), this.bgDayMat);
+        day.position.copy(bg.position);
+        day.renderOrder = DAY_ORDER.dayArt;
+        this.scene.add(day);
+        this.dayNight.setDayArt(true);
+      },
+      undefined,
+      () => {}, // no day art: the procedural grade stands in
+    );
   }
 
   /** (Re)place every prop sprite from the current layout. */
@@ -200,7 +225,7 @@ export class OfficeScene {
     for (const s of spriteList()) {
       const footPx = px(s.foot);
       const wPx = (s.width / 100) * ROOM_W;
-      const mat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false });
+      const mat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, color: this.dayNight.tint });
       const mesh = new THREE.Mesh(this.spriteQuad, mat);
       mesh.scale.set(wPx, wPx, 1);
       const idle = this.loadTex(artUrl(s.sprite), (w, h) => mesh.scale.set(wPx, (wPx * h) / w, 1));
@@ -348,6 +373,26 @@ export class OfficeScene {
     bot.ring.position.set(x, -y, 0);
     bot.ring.renderOrder = y - 0.5;
     return moving;
+  }
+
+  // ── day / night ─────────────────────────────────────────────────────────
+
+  /** Follow the clock (or the pinned mode); re-grade the room when the light has moved. */
+  private updateLight(dt: number): void {
+    const dn = this.dayNight;
+    const hour = currentHour(useDaylight.getState().mode, this.clock);
+    if (this.wallClock.update(hour)) this.dirty = true;
+    if (!dn.update(hour, dt)) return;
+    const { tint } = dn;
+    this.bgMat.color.copy(tint);
+    if (this.bgDayMat) {
+      this.bgDayMat.color.copy(tint);
+      this.bgDayMat.opacity = dn.day;
+    }
+    for (const s of this.sprites) (s.mesh.material as THREE.MeshBasicMaterial).color.copy(tint);
+    this.renderer.setClearColor(dn.clear);
+    if (useDaylight.getState().phase !== dn.phase) useDaylight.setState({ phase: dn.phase });
+    this.dirty = true;
   }
 
   private updateSprites(): void {
@@ -507,6 +552,7 @@ export class OfficeScene {
       if (b.removing && b.fade <= 0) this.dropBot(b);
     }
     this.updateSprites();
+    this.updateLight(dt);
 
     // camera: follow + ease toward target
     if (this.following) {
@@ -582,6 +628,8 @@ export class OfficeScene {
     this.offLayout();
     cancelAnimationFrame(this.raf);
     for (const b of [...this.bots.values()]) this.dropBot(b);
+    this.dayNight.dispose();
+    this.wallClock.dispose();
     this.renderer.dispose();
   }
 }

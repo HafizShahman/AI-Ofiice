@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { AgentState } from '@ai-office/shared';
 import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
-import { activityLine, modelLine, ROLE_COLOR, ROLE_LABEL, standbyRobots, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
+import { activityLine, modelLine, PROPS, ROLE_COLOR, spotIds, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { bindSceneSound } from '../sound/cues.ts';
 import { useOffice } from '../store.ts';
 import { Icon } from '../ui/icons.tsx';
 import { Helper } from './Helper.tsx';
 import { useCeoRounds } from './useCeoRounds.ts';
+import { MEETING_MAX_S, useMeeting } from './useMeeting.ts';
 
 const HELPER = new URLSearchParams(location.search).has('helper');
 
@@ -17,8 +18,8 @@ const tagEls = new Map<string, HTMLElement>();
 
 const ceoWalking = () => sceneRef.current?.isWalking('ceo') ?? null;
 
-/** Robots that are scenery rather than agents: the CEO and the standby role robots. They can't be selected. */
-const fixture = (id: string | null | undefined) => id === 'ceo' || Boolean(id?.startsWith('standby-'));
+/** The CEO is scenery rather than an agent: it can't be selected. */
+const fixture = (id: string | null | undefined) => id === 'ceo';
 
 export function OfficeView({ children }: { children?: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -27,8 +28,6 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   const selected = useOffice((s) => s.selected);
   const following = useOffice((s) => s.following);
   const list = useMemo(() => Object.values(agents).sort((a, b) => a.startedAt - b.startedAt), [agents]);
-  // every role has a robot: the ones no agent is using wait at their desks
-  const standby = useMemo(() => standbyRobots(list), [list]);
 
   // mount the scene once
   useEffect(() => {
@@ -45,20 +44,41 @@ export function OfficeView({ children }: { children?: ReactNode }) {
     };
   }, []);
 
-  const ceo = useCeoRounds(ceoWalking);
+  const meeting = useMeeting((s) => s.on);
+  const ceo = useCeoRounds(ceoWalking, meeting);
+  // a meeting ends by itself, so nobody is stuck at the table if you forget it
   useEffect(() => {
-    const ceoAgent: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: ceo.spot, status: 'idle', activity: ceo.activity };
-    const waiting: SceneAgent[] = standby.map((s) => ({ id: `standby-${s.role}`, color: ROLE_COLOR[s.role], spot: s.spot, status: 'idle', activity: 'idle' }));
+    if (!meeting) return;
+    const t = setTimeout(() => useMeeting.getState().set(false), MEETING_MAX_S * 1000);
+    return () => clearTimeout(t);
+  }, [meeting]);
+  // each attendee keeps its seat for the whole meeting (so a status change doesn't reshuffle the table)
+  const seats = useRef(new Map<string, string>());
+  useEffect(() => {
+    const seatIds = meeting ? spotIds(PROPS.find((p) => p.kind === 'meeting') ?? { id: 'meeting', kind: 'meeting' }) : [];
+    const attendees = list.filter((a) => a.status !== 'blocked').map((a) => a.id);
+    const held = seats.current;
+    for (const id of [...held.keys()]) if (!meeting || !attendees.includes(id)) held.delete(id);
+    for (const id of attendees) {
+      if (!meeting || held.has(id)) continue;
+      const free = seatIds.find((s) => ![...held.values()].includes(s));
+      if (free) held.set(id, free); // no seat left: stays where it is
+    }
+    const at = (id: string, spot: string | null, activity: SceneAgent['activity']) => {
+      const seat = held.get(id);
+      return seat ? { spot: seat, activity: 'idle' as const } : { spot, activity };
+    };
+    const ceoAgent: SceneAgent = { id: 'ceo', color: ROLE_COLOR.ceo, spot: ceo.spot, status: 'idle', activity: meeting ? 'delegating' : ceo.activity };
     sceneRef.current?.setAgents([
       ceoAgent,
-      ...waiting,
-      ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], spot: a.spot, status: a.status, activity: a.activity })),
+      ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], status: a.status, ...at(a.id, a.spot, a.activity) })),
     ]);
-  }, [list, standby, ceo]);
+  }, [list, ceo, meeting]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
-    if (selected) sceneRef.current?.focus(selected, following);
+    // selecting leaves the camera where it is; only Follow (double-click, button, Shift+F) flies to the robot and locks on
+    if (selected && following) sceneRef.current?.focus(selected, true);
   }, [selected, following]);
 
   // drag to pan, click to select, wheel to zoom, double-click to follow
@@ -129,12 +149,9 @@ export function OfficeView({ children }: { children?: ReactNode }) {
 
       {/* overhead tags, positioned by the scene every frame */}
       <div className="pointer-events-none absolute inset-0">
-        <Tag id="ceo" name="You" sub="CEO" line={ceo.line} color={ROLE_COLOR.ceo} />
-        {standby.map((s) => (
-          <Tag key={`standby-${s.role}`} id={`standby-${s.role}`} name={ROLE_LABEL[s.role]} sub="Standby" line="" color={STATUS_COLOR.idle} />
-        ))}
+        <Tag id="ceo" name="You" sub="CEO" line={meeting ? 'Holding a meeting' : ceo.line} color={ROLE_COLOR.ceo} />
         {list.map((a) => (
-          <AgentTag key={a.id} a={a} selected={a.id === selected} />
+          <AgentTag key={a.id} a={a} selected={a.id === selected} inMeeting={meeting && a.status !== 'blocked'} />
         ))}
       </div>
 
@@ -144,8 +161,8 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   );
 }
 
-function AgentTag({ a, selected }: { a: AgentState; selected: boolean }) {
-  return <Tag id={a.id} name={a.name} sub={a.project} line={activityLine(a)} meta={modelLine(a)} color={STATUS_COLOR[statusGroup(a)]} blocked={a.status === 'blocked'} selected={selected} />;
+function AgentTag({ a, selected, inMeeting }: { a: AgentState; selected: boolean; inMeeting: boolean }) {
+  return <Tag id={a.id} name={a.name} sub={a.project} line={inMeeting ? 'In the meeting' : activityLine(a)} meta={modelLine(a)} color={STATUS_COLOR[statusGroup(a)]} blocked={a.status === 'blocked'} selected={selected} />;
 }
 
 function Tag(p: { id: string; name: string; sub: string; line: string; meta?: string; color: string; blocked?: boolean; selected?: boolean }) {
@@ -183,6 +200,7 @@ function Tag(p: { id: string; name: string; sub: string; line: string; meta?: st
 function CameraControls() {
   const selected = useOffice((s) => s.selected);
   const following = useOffice((s) => s.following);
+  const meeting = useMeeting((s) => s.on);
   const btn = 'grid size-9 place-items-center rounded-md text-text hover:bg-surface-2 disabled:opacity-40';
   return (
     <div data-ui className="absolute bottom-4 right-4 flex gap-1 rounded-[10px] border border-border bg-surface/95 p-1 shadow-[0_8px_24px_rgb(0_0_0/.35)]">
@@ -204,6 +222,15 @@ function CameraControls() {
         onClick={() => useOffice.getState().setFollowing(!following)}
       >
         <Icon name="locate" size={16} />
+      </button>
+      <button
+        className={`${btn} ${meeting ? 'bg-accent/15 text-accent' : ''}`}
+        aria-label={meeting ? 'End the meeting' : 'Call a meeting at the holo-table'}
+        aria-pressed={meeting}
+        title={meeting ? 'End the meeting' : 'Call everyone to a meeting at the holo-table'}
+        onClick={() => useMeeting.getState().set(!meeting)}
+      >
+        <Icon name="users" size={16} />
       </button>
     </div>
   );

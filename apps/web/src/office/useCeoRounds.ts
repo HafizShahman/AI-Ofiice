@@ -47,11 +47,17 @@ const stopsAway = (from: string, visited: Set<string>) =>
  * @param isWalking whether the CEO's robot is mid-walk (null = not in the scene yet). Dwell time
  *   counts from arrival, so a long walk across the office doesn't eat the visit. Must be a stable
  *   function: a new one each render would restart the rounds.
+ * @param paused hold at the home spot (a meeting is on)
  */
-export function useCeoRounds(isWalking: () => boolean | null): CeoState {
+export function useCeoRounds(isWalking: () => boolean | null, paused = false): CeoState {
   const [state, setState] = useState<CeoState>({ spot: HOME, ...(AT[HOME] ?? WATCHING) });
 
   useEffect(() => {
+    // paused (a meeting): back to the holo-table and stay; the rounds start afresh when it ends
+    if (paused) {
+      setState({ spot: HOME, ...(AT[HOME] ?? WATCHING) });
+      return;
+    }
     let at = HOME;
     let left = 0; // stops left on this round before heading home
     const visited = new Set<string>(); // this round's stops: no repeats
@@ -114,7 +120,7 @@ export function useCeoRounds(isWalking: () => boolean | null): CeoState {
       setState({ spot, activity: 'idle', line: 'Making rounds' });
     }, TICK_MS);
     return () => window.clearInterval(timer);
-  }, [isWalking]);
+  }, [isWalking, paused]);
 
   return state;
 }

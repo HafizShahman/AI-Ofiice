@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { OfficeView, sceneRef } from './office/OfficeView.tsx';
 import { DebugView } from './DebugView.tsx';
+import { useDaylight } from './scene/daylight.ts';
 import { connect, useOffice } from './store.ts';
 import { toggleSound, useSoundCues } from './sound/cues.ts';
 import { TopBar } from './ui/TopBar.tsx';
@@ -39,7 +40,7 @@ function Office() {
   );
 }
 
-/** UI-PLAN §6: Esc, [ ], Shift+F, C, +/−, 0; plus M for sound. */
+/** UI-PLAN §6: Esc, [ ], Shift+F, C, +/−, 0; plus M for sound and N for day/night. */
 function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -57,6 +58,7 @@ function useKeyboard() {
       } else if (e.key === 'F' && e.shiftKey) s.selected && s.setFollowing(!s.following);
       else if (e.key === 'c' || e.key === 'C') s.toggleChat();
       else if (e.key === 'm' || e.key === 'M') void toggleSound();
+      else if (e.key === 'n' || e.key === 'N') useDaylight.getState().cycle();
       else if (e.key === '/') s.openChannel(s.channel === 'activity' ? 'office' : s.channel, true);
       else if (e.key === '+' || e.key === '=') sceneRef.current?.zoomBy(1.25);
       else if (e.key === '-') sceneRef.current?.zoomBy(0.8);

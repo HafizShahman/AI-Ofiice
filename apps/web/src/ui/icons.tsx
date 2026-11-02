@@ -42,6 +42,13 @@ const paths = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  users: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
   play: <path d="m6 3 14 9-14 9z" fill="currentColor" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" />,
   send: <path d="m22 2-7 20-4-9-9-4zM22 2 11 13" />,
@@ -65,6 +72,13 @@ const paths = {
       <path d="m22 9-6 6M16 9l6 6" />
     </>
   ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </>
+  ),
+  moon: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />,
   logo: (
     <>
       <path d="M12 2 21 7v10l-9 5-9-5V7z" />

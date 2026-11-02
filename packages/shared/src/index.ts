@@ -79,6 +79,8 @@ export interface OfficeEvent {
   effort?: string;
   /** only when the hook payload names it (Claude Code's don't today); see AgentState.model */
   model?: string;
+  /** on an Agent/Task call: the role its wording suggests ("research the docs" → researcher). The wording itself is not kept. */
+  roleHint?: Role;
 }
 
 export interface AgentState {

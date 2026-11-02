@@ -1,11 +1,32 @@
 import type { ReactNode } from 'react';
 import { useSound } from '../sound/engine.ts';
 import { previewVolume, toggleSound } from '../sound/cues.ts';
+import { useDaylight, type Mode, type Phase } from '../scene/daylight.ts';
 import { setAi, toggleSim, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { useCounts } from './util.tsx';
 
 const chip = 'flex h-8 items-center gap-2 rounded-md border px-3 text-[13px]';
+
+const PHASE_LABEL: Record<Phase, string> = { dawn: 'Dawn', day: 'Day', dusk: 'Dusk', night: 'Night' };
+const NEXT_MODE: Record<Mode, string> = { auto: 'Day', day: 'Night', night: 'Auto' };
+
+function DayNightChip() {
+  const mode = useDaylight((s) => s.mode);
+  const phase = useDaylight((s) => s.phase);
+  return (
+    <button
+      onClick={() => useDaylight.getState().cycle()}
+      aria-label={`Lighting: ${mode === 'auto' ? `automatic, ${PHASE_LABEL[phase]}` : PHASE_LABEL[phase]}. Switch to ${NEXT_MODE[mode]}.`}
+      title={`${mode === 'auto' ? 'Lighting follows your clock' : `Lighting pinned to ${PHASE_LABEL[phase].toLowerCase()}`}. Click for ${NEXT_MODE[mode]} (N)`}
+      className={`${chip} rounded-full ${phase === 'night' ? 'border-border text-muted hover:text-text' : 'border-warning/40 bg-warning/8 text-warning'}`}
+    >
+      <Icon name={phase === 'night' ? 'moon' : 'sun'} />
+      {PHASE_LABEL[phase]}
+      {mode === 'auto' && <span className="text-[11px] opacity-70">auto</span>}
+    </button>
+  );
+}
 
 export function TopBar() {
   const c = useCounts();
@@ -21,7 +42,7 @@ export function TopBar() {
     <header className="flex min-h-12 flex-wrap items-center gap-x-5 gap-y-2 border-b border-border bg-[#0b1220] px-4 py-1.5">
       <div className="flex items-center gap-2.5">
         <Icon name="logo" size={22} className="text-accent" />
-        <span className="font-display text-xl tracking-[0.08em]">AI OFFICE</span>
+        <span className="font-display text-xl tracking-[0.08em]">CLAUDE AI OFFICE</span>
       </div>
 
       {connection !== 'open' && (
@@ -70,6 +91,7 @@ export function TopBar() {
           <Icon name="sparkle" />
           {ai.enabled ? `AI on · ${ai.model[0].toUpperCase()}${ai.model.slice(1)}` : 'AI off'}
         </button>
+        <DayNightChip />
         <div className={`${chip} rounded-full ${soundOn ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border text-muted hover:text-text'}`}>
           <button
             onClick={() => void toggleSound()}

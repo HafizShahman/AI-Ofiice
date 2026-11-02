@@ -227,7 +227,7 @@ The rules live in `office.config.json` (regex → role), so new custom agents sl
 
 **Overhead UI:** DOM name tags positioned from each robot's head point (projected to screen). Hidden when zoomed out, except for blocked agents. On the wallboard only blocked tags show.
 
-**Lighting:** the room's light is painted in. Robots get one hemisphere light plus a cyan rim light, so they sit in the scene. No shadow maps: each robot gets a soft blob shadow sprite.
+**Lighting:** the room's light is painted in. Robots get one hemisphere light plus a cyan rim light, so they sit in the scene. No shadow maps: each robot gets a soft blob shadow sprite. **Day/night (built):** the painted room is the night look; a colour grade on the backdrop and props, a sky in the window glass, sun beams on the floor and re-coloured robot lights follow the local clock (see CLAUDE.md), with an optional painted day backdrop to crossfade to.
 
 **Living details (P4):** prop states swap sprites (`coffee-off` → `coffee-on` while an agent drinks, `printer` → `printer-working` while reading, `printer-broken` on `PostToolUseFailure`, filing cabinet opens). Neon strips pulse from a small additive overlay. The bell swings on `TaskCompleted`.
 

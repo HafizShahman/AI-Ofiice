@@ -3,7 +3,8 @@
 
     npm run build:art        (needs Python 3 + Pillow: pip install pillow)
 
-Writes apps/web/public/art/room.webp and apps/web/public/art/<group>/<name>.webp.
+Writes apps/web/public/art/room.webp and apps/web/public/art/<group>/<name>.webp, plus
+room-day.webp when Assets/room/bg-main-area-day.png exists (optional painted day backdrop).
 Sprites are sized for their on-screen width (props.json `width`, % of the 2400 px room)
 with headroom for zooming in, so the whole scene stays well under the PLAN §14 3 MB budget.
 """
@@ -25,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PROPS = ROOT / 'apps/web/src/scene/props.json'
 OUT = ROOT / 'apps/web/public/art'
 ROOM_SRC = ROOT / 'Assets/room/bg-main-area.png'
+ROOM_DAY_SRC = ROOT / 'Assets/room/bg-main-area-day.png'
 ROOM_W = 1920  # backdrop width in the browser
 HEADROOM = 1.6  # sprite pixels per room pixel
 
@@ -43,6 +45,15 @@ def main() -> None:
     room = Image.open(ROOM_SRC).convert('RGB')
     room = room.resize((ROOM_W, round(room.height * ROOM_W / room.width)), Image.LANCZOS)
     total += save(room, OUT / 'room.webp', 82)
+
+    # optional painted daytime backdrop: same size and camera as the night one; the scene crossfades to it
+    if ROOM_DAY_SRC.exists():
+        day = Image.open(ROOM_DAY_SRC).convert('RGB')
+        if day.size != Image.open(ROOM_SRC).size:
+            raise SystemExit(f'{ROOM_DAY_SRC.name} must be {Image.open(ROOM_SRC).size[0]}x{Image.open(ROOM_SRC).size[1]} like {ROOM_SRC.name} (same camera, pixel for pixel)')
+        day = day.resize(room.size, Image.LANCZOS)
+        total += save(day, OUT / 'room-day.webp', 82)
+        print('  room-day.webp (painted day backdrop)')
 
     need: dict[str, float] = {}
     for p in data['props']:

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Activity, AgentState, AgentStatus, OfficeEvent, PropKind } from '@ai-office/shared';
+import type { Activity, AgentState, AgentStatus, OfficeEvent, PropKind, Role } from '@ai-office/shared';
 import { config, ROOT } from './config.ts';
-import { homeDesk, resolveRole, ROLE_LABEL } from './roles.ts';
+import { resolveRole, roleForTool, rolePinned, ROLE_LABEL } from './roles.ts';
 
 // ── spots, read from the same props.json the web app draws ─────────────────
 
@@ -50,6 +50,12 @@ export class Office {
   private pending = new Map<string, Plan>();
   /** leads whose turn ended while background subagents were still working */
   private awaitingChildren = new Set<string>();
+  /** subagents whose type names their job (Explore, Plan…): their role never changes */
+  private pinned = new Set<string>();
+  /** the roles of an agent's last few tool calls; it takes the role they agree on */
+  private recent = new Map<string, Role[]>();
+  /** roles suggested by the wording of Agent calls, waiting for their subagent to appear (by parent) */
+  private hints = new Map<string, Role[]>();
   private listener: OfficeListener;
 
   constructor(listener: OfficeListener) {
@@ -90,14 +96,16 @@ export class Office {
         a.tool = e.tool;
         a.summary = e.summary;
         a.counts.tools++;
-        const plan = planFor(e.tool, a.role);
+        if (e.roleHint) this.hints.set(a.id, [...(this.hints.get(a.id) ?? []), e.roleHint]);
+        this.follow(a, e);
+        const plan = this.plan(a, e.tool);
         if (plan.activity === 'coding') a.counts.edits++;
         if (plan.activity === 'running') a.counts.commands++;
         this.set(a, 'working', plan, e.ts, true);
         break;
       }
       case 'tool_end':
-        if (a.status === 'blocked') this.set(a, 'working', planFor(a.tool, a.role), e.ts);
+        if (a.status === 'blocked') this.set(a, 'working', this.plan(a, a.tool), e.ts);
         else this.listener.agent(a);
         break;
       case 'tool_fail':
@@ -129,7 +137,33 @@ export class Office {
   /** You answered its permission from the office: back to work without waiting for the next hook. */
   resume(id: string): void {
     const a = this.agents.get(id);
-    if (a?.status === 'blocked') this.set(a, 'working', planFor(a.tool, a.role), Date.now());
+    if (a?.status === 'blocked') this.set(a, 'working', this.plan(a, a.tool), Date.now());
+  }
+
+  /** Where a tool call takes an agent. Only a pinned Plan agent thinks at the holo-table whatever it does. */
+  private plan(a: AgentState, tool: string | undefined): Plan {
+    return planFor(tool, this.pinned.has(a.id) ? a.role : 'lead');
+  }
+
+  /**
+   * Agents take the role of the work they do: when two of the last four classified tool calls agree on a role
+   * that isn't theirs (and no other role has as many), the same robot changes role in place: colour, name and
+   * tag, but not desk.
+   */
+  private follow(a: AgentState, e: OfficeEvent): void {
+    if (this.pinned.has(a.id)) return;
+    const r = roleForTool(e.tool, e.summary);
+    if (!r) return;
+    const window = [...(this.recent.get(a.id) ?? []), r].slice(-4);
+    this.recent.set(a.id, window);
+    const votes = new Map<Role, number>();
+    for (const x of window) votes.set(x, (votes.get(x) ?? 0) + 1);
+    const [top, n] = [...votes].sort((x, y) => y[1] - x[1])[0];
+    if (n >= 2 && top !== a.role && (votes.get(a.role) ?? 0) < n) {
+      a.role = top;
+      const same = [...this.agents.values()].filter((x) => x.id !== a.id && x.role === top).length;
+      a.name = ROLE_LABEL[top] + (same ? ` #${same + 1}` : '');
+    }
   }
 
   /** The model an agent's transcript says it is running on (see model.ts). */
@@ -154,11 +188,12 @@ export class Office {
 
   private create(e: OfficeEvent): AgentState {
     const isMain = !e.parentAgentId;
-    const role = resolveRole(e.agentType, isMain);
+    const pinned = rolePinned(e.agentType, isMain);
+    // the wording of the task ("research the DDEV docs") decides the role of a subagent whose type doesn't
+    const hint = !isMain && !pinned ? this.hints.get(e.parentAgentId!)?.shift() : undefined;
+    const role = hint ?? resolveRole(e.agentType, isMain);
     const same = [...this.agents.values()].filter((x) => x.role === role).length;
     const parent = e.parentAgentId ? this.agents.get(e.parentAgentId) : undefined;
-    // nobody else uses this role: its standby robot is at the home desk and this agent takes it over
-    const home = [...this.agents.values()].some((x) => x.role === role && x.status !== 'leaving') ? null : homeDesk(role);
     const a: AgentState = {
       id: e.agentId,
       sessionId: e.sessionId,
@@ -171,29 +206,27 @@ export class Office {
       status: 'arriving',
       activity: 'arriving',
       spot: 'door',
-      desk: this.freeDesk(home),
+      desk: this.freeDesk(parent?.desk ?? null),
       startedAt: e.ts,
       lastEventAt: e.ts,
       statusSince: e.ts,
       counts: { tools: 0, edits: 0, commands: 0, failures: 0 },
     };
     this.agents.set(a.id, a);
-    // first sighting mid-session (server restarted) or taking over a standby robot in place: skip the walk-in
-    if (e.kind !== 'spawn' || (home !== null && a.desk === home)) this.set(a, 'idle', { activity: 'idle', kind: 'desk' }, e.ts);
+    if (pinned) this.pinned.add(a.id);
+    // first sighting mid-session (server restarted): skip the walk-in
+    if (e.kind !== 'spawn') this.set(a, 'idle', { activity: 'idle', kind: 'desk' }, e.ts);
     else this.listener.agent(a);
     return a;
   }
 
-  /**
-   * Free desk: the role's home desk when it is free. Otherwise (an extra robot for a role already in use) the
-   * highest free one: home desks run from the common roles to the rare ones (see ROLE_ORDER), so extras
-   * displace the roles least likely to turn up.
-   */
-  private freeDesk(home: number | null): number | null {
+  /** Free desk, nearest to the parent's desk when there is one. */
+  private freeDesk(near: number | null): number | null {
     const used = new Set([...this.agents.values()].map((x) => x.desk));
     const free = Array.from({ length: DESK_COUNT }, (_, i) => i + 1).filter((d) => !used.has(d));
-    if (home !== null && free.includes(home)) return home;
-    return free.length ? free[free.length - 1] : null;
+    if (!free.length) return null;
+    if (near == null) return free[0];
+    return free.sort((x, y) => Math.abs(x - near) - Math.abs(y - near))[0];
   }
 
   /** Claim a free spot of a kind. Desks are owned; the door never runs out. */
@@ -234,6 +267,9 @@ export class Office {
           this.agents.delete(a.id);
           this.pending.delete(a.id);
           this.awaitingChildren.delete(a.id);
+          this.pinned.delete(a.id);
+          this.recent.delete(a.id);
+          this.hints.delete(a.id);
           this.listener.remove(a.id);
           if (a.parentId) this.childGone(a.parentId, now);
         }

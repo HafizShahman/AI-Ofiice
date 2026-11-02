@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import type { AskQuestion, EventKind, OfficeEvent } from '@ai-office/shared';
+import { roleFromText } from './roles.ts';
 
 /** The parts of a Claude Code hook payload we read. Everything else is ignored and never stored. */
 export interface HookPayload {
@@ -75,6 +76,7 @@ export function normalize(p: HookPayload): OfficeEvent | null {
     agentType: p.agent_type,
     effort: label(rec(p.effort).level),
     model: label(p.model),
+    roleHint: kind === 'tool_start' && (p.tool_name === 'Agent' || p.tool_name === 'Task') ? roleFromText(`${str(rec(p.tool_input).description)} ${str(rec(p.tool_input).subagent_type)}`) : undefined,
   };
 }
 

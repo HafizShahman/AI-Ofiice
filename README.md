@@ -2,8 +2,24 @@
 
 A light, local-only **isometric sci-fi office** where your Claude Code agents show up as robots. They walk in, go to the prop that matches what they're doing (desk, archive, server bank, holo-table, coffee bar…), raise a hand when they need permission, and walk out when they finish.
 
+<p align="center"><img src="docs/media/office-3d.png" alt="AI Office: robots working in the 3D sci-fi office, with roster and chat panel" width="900"></p>
+
 - **Plan:** [`docs/PLAN.md`](docs/PLAN.md) · **UI:** [`docs/UI-PLAN.md`](docs/UI-PLAN.md) · **Design:** the "AI Office UI" canvas on claude.ai
-- **Status:** P2 first pass. The browser shows the isometric office with animated robots, a roster, an inspector, a blocked-permission toast and an #activity feed. The raw P1 debug list is at `?debug`. Robots path-find around furniture (walk grid + A*), and `?helper` is a drag-and-drop layout editor. The side panel has #activity, #office (the AI Office Manager) and a DM per robot. Next: polish (P4).
+- **Features:** a 3D room (limited orbit, day/night, bloom; `?view=2d` for the painted one), path-finding robots, roster and inspector, #activity / #office / per-agent chat, an opt-in AI Office Manager, approving permission prompts from the office, sound, a mission board with reminders, a wallboard mode and a ⌘K palette.
+
+| Orbit the room | Approve a permission prompt |
+| --- | --- |
+| <img src="docs/media/office-3d-orbit.png" alt="Orbited 3D view" width="440"> | <img src="docs/media/approve.png" alt="Blocked agent with Allow / Deny" width="440"> |
+
+## Quick start
+
+```bash
+npm install
+npm run install-hooks   # once: adds the hooks to ~/.claude/settings.json (backup made)
+npm run dev             # server :3334 + UI at http://127.0.0.1:5273
+```
+
+No Claude Code running? Click **Run demo** in the UI, or open `http://127.0.0.1:5273/?sim`.
 
 ## How it works
 

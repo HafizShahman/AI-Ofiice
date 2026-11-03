@@ -1,0 +1,7 @@
+# Blender asset catalogs for the AI Office props
+VERSION 1
+
+3f6c2a10-8b1e-4a52-9c3d-1e2f3a4b5c01:AI Office/Furniture:AI Office-Furniture
+3f6c2a10-8b1e-4a52-9c3d-1e2f3a4b5c02:AI Office/Appliances:AI Office-Appliances
+3f6c2a10-8b1e-4a52-9c3d-1e2f3a4b5c03:AI Office/Plants:AI Office-Plants
+3f6c2a10-8b1e-4a52-9c3d-1e2f3a4b5c04:AI Office/Wall:AI Office-Wall

@@ -180,8 +180,8 @@ export class Chat {
   private task(channel: string, text: string): void {
     const d = this.deps.dispatch;
     let rest = text.replace(/^\/task\s*/i, '');
-    const dm = this.agentFor(channel);
     const projects = d.state().projects;
+    const dm = this.agentFor(channel);
     let cwd: string | undefined = dm?.cwd;
     const tag = rest.match(/^@(\S+)\s*/);
     if (tag) {

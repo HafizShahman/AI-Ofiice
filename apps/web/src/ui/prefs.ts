@@ -22,12 +22,14 @@ export interface Prefs {
   reduceMotion: boolean;
   /** browser notification when an agent is blocked and this tab is hidden */
   notify: boolean;
+  /** the 3D room (on) or the painted 2D office (off); ?view=2d|3d overrides it per tab */
+  view3d: boolean;
 }
 
 const osReducesMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function readPrefs(): Prefs {
-  const d: Prefs = { accent: 'cyan', clock24: true, quality: 'medium', reduceMotion: osReducesMotion(), notify: false };
+  const d: Prefs = { accent: 'cyan', clock24: true, quality: 'medium', reduceMotion: osReducesMotion(), notify: false, view3d: true };
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Prefs>;
     return {
@@ -37,6 +39,7 @@ function readPrefs(): Prefs {
       reduceMotion: typeof p.reduceMotion === 'boolean' ? p.reduceMotion : d.reduceMotion,
       // a saved "on" only holds while the browser still allows notifications
       notify: p.notify === true && typeof Notification !== 'undefined' && Notification.permission === 'granted',
+      view3d: typeof p.view3d === 'boolean' ? p.view3d : d.view3d,
     };
   } catch {
     return d;
@@ -61,8 +64,8 @@ export function initPrefs(): () => void {
   return usePrefs.subscribe((s) => {
     apply(s);
     try {
-      const { accent, clock24, quality, reduceMotion, notify } = s;
-      localStorage.setItem(KEY, JSON.stringify({ accent, clock24, quality, reduceMotion, notify }));
+      const { accent, clock24, quality, reduceMotion, notify, view3d } = s;
+      localStorage.setItem(KEY, JSON.stringify({ accent, clock24, quality, reduceMotion, notify, view3d }));
     } catch {
       /* private mode: the choices just don't survive a reload */
     }

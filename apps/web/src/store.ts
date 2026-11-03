@@ -247,6 +247,16 @@ export async function setDispatch(opts: { enabled?: boolean; mode?: 'plan' | 'ac
   await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify(opts) });
 }
 
+export async function addFolder(path: string): Promise<string | null> {
+  const r = await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ addFolder: path }) });
+  if (r.ok) return null;
+  const j = (await r.json().catch(() => ({}))) as { error?: string };
+  return j.error ?? 'Could not add the folder.';
+}
+
+export async function removeFolder(path: string): Promise<void> {
+  await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ removeFolder: path }) });
+}
 export async function stopTask(id: string): Promise<void> {
   await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ stop: id }) });
 }

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { AgentState, ChatMessage, OfficeEvent } from '@ai-office/shared';
-import type { OfficeScene } from '../scene/OfficeScene.ts';
+import type { OfficeSceneApi } from '../scene/sceneApi.ts';
 import { PROPS, statusGroup } from '../scene/layout.ts';
 import { useOffice } from '../store.ts';
 import { initSound, ready, setBusy, throttle, useSound } from './engine.ts';
@@ -13,7 +13,7 @@ import * as v from './voices.ts';
  */
 
 /** The mounted scene (see bindScene): it knows where each robot is, for panning. */
-let scene: OfficeScene | null = null;
+let scene: OfficeSceneApi | null = null;
 const FLAT: v.Fx = {};
 const at = (id: string): v.Fx => scene?.spatial(id) ?? FLAT;
 
@@ -101,7 +101,7 @@ function startCues(): () => void {
 }
 
 /** Footfalls and prop sounds come from the scene. Returns the unbind. */
-export function bindSceneSound(s: OfficeScene): () => void {
+export function bindSceneSound(s: OfficeSceneApi): () => void {
   scene = s;
   s.onStep = (_id, fx) => cue('step', 45, false, () => v.step(fx));
   s.onArrive = (_id, propId, fx) => {

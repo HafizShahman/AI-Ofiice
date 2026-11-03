@@ -69,6 +69,20 @@ export class WallClock {
     scene.add(this.mesh);
   }
 
+  /**
+   * Put the clock somewhere else (the 3D room): `m` maps the unit square (u right, v up, facing +z) to
+   * the world; depth-tested like any other surface there.
+   */
+  place(m: THREE.Matrix4): void {
+    this.mesh.matrix.copy(m);
+    this.mesh.matrixWorldNeedsUpdate = true;
+    this.mesh.renderOrder = 0;
+    const mat = this.mesh.material as THREE.MeshBasicMaterial;
+    mat.depthTest = true;
+    mat.toneMapped = false;
+    mat.needsUpdate = true;
+  }
+
   /** Redraw when the minute, the phase or the blinking colon changes. True when it did. */
   update(hour: number): boolean {
     hour = Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 0;

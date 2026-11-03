@@ -21,6 +21,7 @@
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
     "build:robot": "bash scripts/build-robot.sh",
+    "build:room": "bash scripts/build-room.sh",
     "build:art": "python3 scripts/build-art.py"
   },
   "devDependencies": {

@@ -3,7 +3,7 @@ import type { SettingsInfo } from '@ai-office/shared';
 import { useDaylight, type Mode } from '../scene/daylight.ts';
 import { previewVolume, toggleSound } from '../sound/cues.ts';
 import { useSound } from '../sound/engine.ts';
-import { setAi, setAiOptions, setApprovals, setApprovalWait, setDispatch, useOffice } from '../store.ts';
+import { setAi, setAiOptions, setApprovals, setApprovalWait, setDispatch, addFolder, removeFolder, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { ACCENTS, setNotify, usePrefs, useUi, type Accent, type Quality } from './prefs.ts';
 
@@ -51,6 +51,7 @@ export function SettingsDrawer() {
           <Ai info={info} />
           <Approvals info={info} />
           <Tasks />
+          <Folder />
           <Notifications />
           <Hooks info={info} failed={failed} />
           <Roles info={info} />
@@ -98,10 +99,14 @@ const QUALITIES: [Quality, string][] = [['low', 'Low'], ['medium', 'Medium'], ['
 function Scene() {
   const quality = usePrefs((s) => s.quality);
   const reduce = usePrefs((s) => s.reduceMotion);
+  const view3d = usePrefs((s) => s.view3d);
   const set = usePrefs((s) => s.set);
   const mode = useDaylight((s) => s.mode);
   return (
     <Section title="Scene">
+      <Row label="3D room" hint="Off shows the painted 2D office (lighter on the GPU). In 3D, right-drag or Shift-drag turns the camera.">
+        <Toggle label="3D room" on={view3d} onChange={(v) => set({ view3d: v })} />
+      </Row>
       <Row label="Lighting" hint="Auto follows your clock (N)">
         <Segmented label="Lighting" value={mode} options={MODES} onChange={(m) => useDaylight.getState().setMode(m)} />
       </Row>
@@ -182,11 +187,57 @@ function Tasks() {
             <Segmented label="Task permissions" value={d.mode} options={[['plan', 'Read-only'], ['acceptEdits', 'Can edit']]} onChange={(m) => void setDispatch({ mode: m })} />
           </Row>
           <Note tone="info">
-            Runs where an agent has already worked: {d.projects.length ? d.projects.map((p) => p.name).join(', ') : 'none seen yet'}. Needs the office server on the same machine as <code className="font-mono">claude</code>, and the hooks installed to see the robot.
+            Needs the office server on the same machine as <code className="font-mono">claude</code>, and the hooks installed to see the robot.
             {d.available === false ? ' The claude command was not found.' : ''}
           </Note>
         </>
       )}
+    </Section>
+  );
+}
+
+/** Every folder the office knows: the ones you added (Remove) and the ones an agent has worked in. */
+function Folder() {
+  const projects = useOffice((s) => s.dispatch.projects);
+  const [path, setPath] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const add = async () => {
+    if (!path.trim()) return;
+    const err = await addFolder(path);
+    setError(err);
+    if (!err) setPath('');
+  };
+  return (
+    <Section title="Folder">
+      <p className="text-[12px] text-muted">Folders you add here appear in the Task picker. Type the full path, e.g. <code className="font-mono">~/Sites/my-app</code>.</p>
+      <div className="flex gap-2">
+        <input
+          aria-label="Folder path"
+          value={path}
+          placeholder="/Users/you/project or ~/project"
+          onChange={(e) => setPath(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void add()}
+          className="min-w-0 flex-1 rounded border border-border bg-surface px-2 py-1 font-mono text-[12px]"
+        />
+        <button onClick={() => void add()} className="rounded border border-border px-2.5 py-1 text-[12px] hover:bg-surface-2">
+          Add
+        </button>
+      </div>
+      {error && <p role="alert" className="text-[12px] text-warning">{error}</p>}
+      <ul className="space-y-1">
+        {projects.map((p) => (
+          <li key={p.path} className="flex items-center gap-2 text-[12px]">
+            <span className="min-w-0 flex-1 truncate font-mono" title={p.path}>
+              {p.path}
+            </span>
+            {!p.saved && <span className="text-muted">seen</span>}
+            <button aria-label={`Remove ${p.name}`} onClick={() => void removeFolder(p.path)} className="text-muted hover:text-warning">
+              Remove
+            </button>
+          </li>
+        ))}
+        {!projects.length && <li className="text-[12px] text-muted">No folders yet.</li>}
+      </ul>
     </Section>
   );
 }

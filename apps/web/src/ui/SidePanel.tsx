@@ -411,7 +411,7 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
     const body = text.trim();
     if (!body) return;
     if (tasking) {
-      if (!chosen) return setTaskError('No project yet: start Claude Code in a folder once so the office knows it.');
+      if (!chosen) return setTaskError('No project folder yet: add one in Settings → Folder.');
       setTaskError(null);
       void sendTask(body, chosen, channel).then((err) => {
         if (err) setTaskError(err);

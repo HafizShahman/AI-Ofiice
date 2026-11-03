@@ -231,7 +231,7 @@ export class Office {
 
   /** Claim a free spot of a kind. Desks are owned; the door never runs out. */
   private claim(a: AgentState, kind: PropKind): string | null {
-    if (kind === 'desk') return a.desk ? `desk-${a.desk}` : this.claim(a, 'lounge');
+    if (kind === 'desk') return a.desk ? `desk-${a.desk}` : (this.claim(a, 'holo-table') ?? this.claim(a, 'coffee'));
     if (kind === 'door') return 'door';
     const taken = new Set([...this.agents.values()].filter((x) => x.id !== a.id).map((x) => x.spot));
     return (POOLS.get(kind) ?? []).find((s) => !taken.has(s)) ?? null;
@@ -245,7 +245,7 @@ export class Office {
       return;
     }
     this.pending.delete(a.id);
-    // prop full (e.g. someone else at the bell) → fall back to own desk, then the lounge
+    // prop full (e.g. someone else at the bell) → fall back to own desk; no desk free → the holo-table, then coffee
     const spot = this.claim(a, plan.kind) ?? this.claim(a, 'desk');
     const moved = spot !== a.spot || status !== a.status;
     a.status = status;
@@ -293,9 +293,8 @@ export class Office {
       } else if (quiet > t.chargeAfterSec && a.status !== 'charging') {
         this.set(a, 'charging', { activity: 'charging', kind: 'charging' }, now);
       } else if (quiet > t.breakAfterSec && a.status !== 'break' && a.status !== 'charging') {
-        const someoneOnBreak = [...this.agents.values()].some((x) => x.id !== a.id && x.status === 'break');
-        const plan: Plan = someoneOnBreak ? { activity: 'lounge', kind: 'lounge' } : { activity: 'coffee', kind: 'coffee' };
-        this.set(a, 'break', plan, now);
+        // the lounge is gone (3D room): a break is coffee; with both machines taken, set() falls back to the desk
+        this.set(a, 'break', { activity: 'coffee', kind: 'coffee' }, now);
       } else if (quiet > t.idleAfterSec && a.status === 'working') {
         this.set(a, 'idle', { activity: 'idle', kind: 'desk' }, now);
       }

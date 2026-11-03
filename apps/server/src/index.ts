@@ -272,7 +272,12 @@ app.post('/api/approvals/:id', async (c) => {
 
 // Start a task (a new claude -p agent) in a known project folder; settings and stop
 app.post('/api/dispatch', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { task?: string; cwd?: string; channel?: string; enabled?: boolean; mode?: string; stop?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { task?: string; cwd?: string; channel?: string; enabled?: boolean; mode?: string; stop?: string; addFolder?: string; removeFolder?: string };
+  if (typeof body.addFolder === 'string') {
+    const r = dispatcher.addFolder(body.addFolder);
+    return c.json({ ...r, state: dispatcher.state() }, r.ok ? 200 : 400);
+  }
+  if (typeof body.removeFolder === 'string') dispatcher.removeFolder(body.removeFolder);
   if (typeof body.mode === 'string') dispatcher.setMode(body.mode);
   if (typeof body.enabled === 'boolean') await dispatcher.setEnabled(body.enabled);
   if (typeof body.stop === 'string') return c.json({ stopped: dispatcher.stop(body.stop) });

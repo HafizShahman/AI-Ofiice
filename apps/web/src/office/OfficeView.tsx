@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { AgentState } from '@ai-office/shared';
-import { OfficeScene, type SceneAgent } from '../scene/OfficeScene.ts';
+import { OfficeScene } from '../scene/OfficeScene.ts';
+import { OfficeScene3D } from '../scene/OfficeScene3D.ts';
+import type { OfficeSceneApi, SceneAgent } from '../scene/sceneApi.ts';
 import { activityLine, modelLine, PROPS, ROLE_COLOR, spotIds, statusGroup, STATUS_COLOR } from '../scene/layout.ts';
 import { bindSceneSound } from '../sound/cues.ts';
 import { useOffice } from '../store.ts';
@@ -13,9 +15,14 @@ import { useCeoRounds } from './useCeoRounds.ts';
 import { MEETING_MAX_S, useMeeting } from './useMeeting.ts';
 
 const HELPER = new URLSearchParams(location.search).has('helper');
+/** ?view=2d / ?view=3d overrides the setting for this tab */
+const VIEW = new URLSearchParams(location.search).get('view');
+
+/** The 3D room unless ?view=2d, the setting is off, or the ?helper editor (2D only) is open. */
+export const wants3d = (pref: boolean) => !HELPER && (VIEW === '3d' || (VIEW !== '2d' && pref));
 
 /** The live scene, shared with the roster/inspector/keyboard so they can drive the camera. */
-export const sceneRef: { current: OfficeScene | null } = { current: null };
+export const sceneRef: { current: OfficeSceneApi | null } = { current: null };
 /** Overhead tag elements by agent id; the scene moves them every frame. */
 const tagEls = new Map<string, HTMLElement>();
 
@@ -35,10 +42,11 @@ export function OfficeView({ children }: { children?: ReactNode }) {
   const following = useOffice((s) => s.following);
   const wallboard = useUi((s) => s.wallboard);
   const list = useMemo(() => Object.values(agents).sort((a, b) => a.startedAt - b.startedAt), [agents]);
+  const view3d = usePrefs((s) => wants3d(s.view3d));
 
-  // mount the scene once
+  // mount the scene (again when switching between the 3D room and the painted office)
   useEffect(() => {
-    const scene = new OfficeScene(canvas.current!, tagEls);
+    const scene: OfficeSceneApi = view3d ? new OfficeScene3D(canvas.current!, tagEls) : new OfficeScene(canvas.current!, tagEls);
     scene.anchors = anchorEls;
     sceneRef.current = scene;
     const unbindSound = bindSceneSound(scene);
@@ -61,7 +69,7 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       scene.dispose();
       sceneRef.current = null;
     };
-  }, []);
+  }, [view3d]);
 
   // the researcher only exists while an agent has that role (roles follow the work), so a standby one reads at the archive
   const researcherSpot = useMemo(() => {
@@ -105,16 +113,16 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       ...standby,
       ...list.map((a) => ({ id: a.id, color: ROLE_COLOR[a.role], status: a.status, ...at(a.id, a.spot, a.activity) })),
     ]);
-  }, [list, ceo, meeting, researcherSpot]);
+  }, [list, ceo, meeting, researcherSpot, view3d]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
     // selecting leaves the camera where it is; only Follow (double-click, button, Shift+F) flies to the robot and locks on
     if (selected && following) sceneRef.current?.focus(selected, true);
-  }, [selected, following]);
+  }, [selected, following, view3d]);
 
   // drag to pan, click to select, wheel to zoom, double-click to follow
-  const drag = useRef<{ x: number; y: number; moved: boolean; id: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; id: number; orbit: boolean } | null>(null);
   const local = (e: { clientX: number; clientY: number }) => {
     const r = wrap.current!.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -136,7 +144,8 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       className="relative h-full w-full touch-none select-none overflow-hidden bg-[#0f1324]"
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('[data-ui]')) return;
-        drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId };
+        // right button or Shift/Alt + drag turns the 3D camera; a plain drag pans
+        drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId, orbit: e.button === 2 || e.shiftKey || e.altKey };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }}
       onPointerMove={(e) => {
@@ -154,16 +163,20 @@ export function OfficeView({ children }: { children?: ReactNode }) {
         d.moved = true;
         d.x = e.clientX;
         d.y = e.clientY;
-        scene.panBy(dx, dy);
-        useOffice.getState().setFollowing(false);
+        if (d.orbit && scene.orbitBy) scene.orbitBy(dx, dy);
+        else {
+          scene.panBy(dx, dy);
+          useOffice.getState().setFollowing(false);
+        }
       }}
       onPointerUp={(e) => {
         const d = drag.current;
         drag.current = null;
-        if (!d || d.moved) return;
+        if (!d || d.moved || d.orbit) return;
         const hit = sceneRef.current?.hitTest(local(e).x, local(e).y) ?? null;
         if (!fixture(hit)) useOffice.getState().select(hit);
       }}
+      onContextMenu={(e) => e.preventDefault()}
       onDoubleClick={(e) => {
         const hit = sceneRef.current?.hitTest(local(e).x, local(e).y);
         if (hit && !fixture(hit)) {

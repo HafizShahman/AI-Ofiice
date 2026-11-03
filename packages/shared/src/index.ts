@@ -143,8 +143,8 @@ export interface DispatchState {
   enabled: boolean;
   /** what a dispatched agent may do: plan = read and investigate only, acceptEdits = may also edit files */
   mode: 'plan' | 'acceptEdits';
-  /** folders the office has seen agents work in: the only places a task can run */
-  projects: { path: string; name: string }[];
+  /** where a task can run: folders saved in Settings (saved) plus ones the office has seen agents work in */
+  projects: { path: string; name: string; saved?: boolean }[];
   /** the folder used last, preselected in the composer */
   last: string | null;
   /** tasks still running (their agent's DM channel is dm:<id>) */

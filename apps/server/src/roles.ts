@@ -29,7 +29,7 @@ export function rolePinned(agentType: string | undefined, isMain: boolean): bool
 }
 
 const TEST_CMD = /\b(test|jest|vitest|pytest|phpunit|playwright|cypress|lint|eslint|tsc|typecheck)\b/i;
-const OPS_CMD = /\b(deploy|docker|kubectl|terraform|helm|ssh|ddev|systemctl|git push)\b/i;
+const OPS_CMD = /\b(deploy|docker|kubectl|terraform|helm|ssh|systemctl|git push)\b/i;
 
 /** The role a tool call looks like: reading and searching is research, plan tools are architecture, edits are engineering. Null = no signal. */
 export function roleForTool(tool: string | undefined, summary: string | undefined): Role | null {

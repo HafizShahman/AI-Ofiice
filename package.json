@@ -20,6 +20,11 @@
     "typecheck": "tsc -p apps/server && tsc -p apps/web",
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
+    "app": "node scripts/open-app.mjs",
+    "desktop": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "desktop:build": "cd apps/desktop && npx --yes @tauri-apps/cli@2 build --bundles app",
+    "install-service": "node scripts/install-service.mjs",
+    "uninstall-service": "node scripts/install-service.mjs --remove",
     "build:robot": "bash scripts/build-robot.sh",
     "build:room": "bash scripts/build-room.sh",
     "build:art": "python3 scripts/build-art.py"

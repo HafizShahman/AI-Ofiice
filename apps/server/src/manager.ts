@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptions } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { accessSync, constants, mkdirSync, rmSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, delimiter, join } from 'node:path';
+import { basename, delimiter, dirname, join } from 'node:path';
 import type { AgentState, ArtifactRef, ChatMessage, OfficeEvent } from '@ai-office/shared';
 import { config } from './config.ts';
 
@@ -15,19 +15,37 @@ import { config } from './config.ts';
  */
 
 const CONFIGURED = process.env.OFFICE_AI_COMMAND ?? config.ai.command;
-const IN_DDEV = process.env.IS_DDEV_PROJECT === 'true';
 
 /**
  * Find the Claude Code binary. A shell alias (e.g. `alias claude=~/.claude/local/claude` from
  * the old local installer) is invisible to a spawned process, so look in PATH and then in the
  * usual install locations.
  */
+const WINDOWS = process.platform === 'win32';
+
+/**
+ * Start Claude Code. Node refuses to spawn a .cmd/.bat shim without a shell, and a shell would
+ * mangle the system prompt in the arguments, so an npm shim is bypassed: run its cli.js with node.
+ */
+export function spawnClaude(args: string[], options: SpawnOptions): ChildProcessWithoutNullStreams {
+  // the callers that read the streams pass stdio: 'pipe', so the streams exist
+  let child;
+  if (WINDOWS && /\.(cmd|bat)$/i.test(COMMAND)) {
+    const cli = join(dirname(COMMAND), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+    if (existsSync(cli)) child = spawn(process.execPath, [cli, ...args], options);
+  }
+  return (child ?? spawn(COMMAND, args, options)) as ChildProcessWithoutNullStreams;
+}
+
 function findClaude(): string {
   if (CONFIGURED) return CONFIGURED;
   const home = homedir();
+  // on Windows a command is a file with an extension: claude.exe (native installer) or claude.cmd (npm)
+  const names = WINDOWS ? ['claude.exe', 'claude.cmd'] : ['claude'];
   const candidates = [
-    ...(process.env.PATH ?? '').split(delimiter).filter(Boolean).map((d) => join(d, 'claude')),
-    join(home, '.local', 'bin', 'claude'), // native installer
+    ...(process.env.PATH ?? '').split(delimiter).filter(Boolean).flatMap((d) => names.map((n) => join(d, n))),
+    ...names.map((n) => join(home, '.local', 'bin', n)), // native installer
+    ...(WINDOWS && process.env.APPDATA ? [join(process.env.APPDATA, 'npm', 'claude.cmd')] : []),
     join(home, '.claude', 'local', 'claude'), // old "local" npm install (shell alias)
     '/opt/homebrew/bin/claude',
     '/usr/local/bin/claude',
@@ -48,7 +66,7 @@ function findClaude(): string {
 let COMMAND = findClaude();
 /** The Claude Code command in use (also used to start tasks from the office). */
 export const claudeCommand = () => COMMAND;
-console.log(`Office Manager command: ${COMMAND}${IN_DDEV ? ' (inside DDEV)' : ''}`);
+console.log(`Office Manager command: ${COMMAND}`);
 const TIMEOUT_MS = (config.ai.timeoutSec ?? 60) * 1000;
 // making and publishing a page takes several tool turns, so it gets more time
 const ARTIFACT_TIMEOUT_MS = Math.max(TIMEOUT_MS, 180_000);
@@ -222,7 +240,7 @@ export function ask(system: string, prompt: string, opts: AskOptions = {}): Prom
       mkdirSync(workDir, { recursive: true });
       cwd = workDir;
     }
-    const child = spawn(COMMAND, args, { cwd, env: { ...process.env, AI_OFFICE_INTERNAL: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawnClaude(args, { cwd, env: { ...process.env, AI_OFFICE_INTERNAL: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
       finish({ ok: false, text: `The Office Manager took longer than ${limitMs / 1000}s and was stopped.` });
@@ -234,9 +252,7 @@ export function ask(system: string, prompt: string, opts: AskOptions = {}): Prom
         ok: false,
         text:
           e.code === 'ENOENT'
-            ? IN_DDEV
-              ? "The office server is running inside DDEV, where Claude Code isn't installed. Run `ddev stop`, then `npm run dev` on your Mac, and open http://127.0.0.1:5273."
-              : `Couldn't find Claude Code (\`${COMMAND}\`) on this Mac: not in the server's PATH or the usual install folders. Run \`which claude\` in a terminal and put that path in \`ai.command\` in office.config.json, then restart \`npm run dev\`.`
+            ? `Couldn't find Claude Code (\`${COMMAND}\`) on this machine: not in the server's PATH or the usual install folders. Run \`${WINDOWS ? 'where' : 'which'} claude\` in a terminal and put that path in \`ai.command\` in office.config.json, then restart \`npm run dev\`.`
             : `Couldn't start \`${COMMAND}\`: ${e.message}`,
       }),
     );
@@ -254,7 +270,7 @@ export function ask(system: string, prompt: string, opts: AskOptions = {}): Prom
 export function checkAvailable(): Promise<boolean> {
   if (!CONFIGURED) COMMAND = findClaude(); // it may have been installed since the server started
   return new Promise((resolve) => {
-    const child = spawn(COMMAND, ['--version'], { cwd: tmpdir(), stdio: 'ignore' });
+    const child = spawnClaude(['--version'], { cwd: tmpdir(), stdio: 'ignore' });
     const t = setTimeout(() => {
       child.kill();
       resolve(false);

@@ -3,7 +3,7 @@ import type { SettingsInfo } from '@ai-office/shared';
 import { useDaylight, type Mode } from '../scene/daylight.ts';
 import { previewVolume, toggleSound } from '../sound/cues.ts';
 import { useSound } from '../sound/engine.ts';
-import { setAi, setAiOptions, setApprovals, setApprovalWait, setDispatch, addFolder, removeFolder, useOffice } from '../store.ts';
+import { setAi, setAiOptions, setApprovals, setApprovalWait, setDispatch, addFolder, removeFolder, toggleSim, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { ACCENTS, setNotify, usePrefs, useUi, type Accent, type Quality } from './prefs.ts';
 
@@ -102,6 +102,7 @@ function Scene() {
   const view3d = usePrefs((s) => s.view3d);
   const set = usePrefs((s) => s.set);
   const mode = useDaylight((s) => s.mode);
+  const sim = useOffice((s) => s.sim);
   return (
     <Section title="Scene">
       <Row label="3D room" hint="Off shows the painted 2D office (lighter on the GPU). In 3D, right-drag or Shift-drag turns the camera.">
@@ -116,6 +117,9 @@ function Scene() {
       <Row label="Reduce motion" hint="The camera jumps instead of flying, and the wallboard tour stays still. Robots still walk.">
         <Toggle label="Reduce motion" on={reduce} onChange={(v) => set({ reduceMotion: v })} />
       </Row>
+      <Row label="Demo" hint="Fills the office with simulated agents so you can see it work without Claude Code.">
+        <Toggle label="Run demo" on={sim} onChange={(v) => void toggleSim(v)} />
+      </Row>
     </Section>
   );
 }
@@ -128,7 +132,7 @@ function Ai({ info }: { info: SettingsInfo | null }) {
       <Row label="Answer questions with AI" hint="Runs one claude -p call per question, with your Claude Code login.">
         <Toggle label="Office Manager" on={ai.enabled} onChange={(v) => void setAi(v)} />
       </Row>
-      {ai.enabled && ai.available === false && <Note tone="warn">The claude command was not found on the machine running the server (it isn’t installed in DDEV).</Note>}
+      {ai.enabled && ai.available === false && <Note tone="warn">The claude command was not found on the machine running the server.</Note>}
       <Row label="Model" hint="Haiku is fastest and cheapest.">
         <select
           aria-label="Model"
@@ -288,7 +292,7 @@ function Hooks({ info, failed }: { info: SettingsInfo | null; failed: boolean })
       ) : !h ? (
         <Note>Checking…</Note>
       ) : h.installed === null ? (
-        <Note>This server can’t see <code className="font-mono">~/.claude</code> (it is probably running in DDEV), so it can’t tell. The first event from a session proves they work.</Note>
+        <Note>This server can’t see <code className="font-mono">~/.claude</code>, so it can’t tell. The first event from a session proves they work.</Note>
       ) : h.installed ? (
         <Note tone="ok">
           Installed in <code className="break-all font-mono">{h.file}</code>
@@ -317,7 +321,7 @@ function Hooks({ info, failed }: { info: SettingsInfo | null; failed: boolean })
           <Icon name={copied ? 'check' : 'copy'} size={14} />
         </button>
       </div>
-      <p className="mt-1.5 text-[12px] text-muted">In DDEV add <code className="font-mono">--url http://ai-office.ddev.site:3334/hook</code>. Hooks load without restarting Claude Code.</p>
+      <p className="mt-1.5 text-[12px] text-muted">To use another server URL add <code className="font-mono">--url http://host:3334/hook</code>. Hooks load without restarting Claude Code.</p>
     </Section>
   );
 }

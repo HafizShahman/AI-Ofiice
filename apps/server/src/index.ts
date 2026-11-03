@@ -318,7 +318,7 @@ app.post('/api/ai', async (c) => {
   return c.json(chat!.ai);
 });
 
-// built web app (npm run build); in dev, Vite serves it on :5273 (DDEV: :5173) and proxies here
+// built web app (npm run build); in dev, Vite serves it on :5273 and proxies here
 if (existsSync(config.webDist)) {
   app.use('/*', serveStatic({ root: config.webDist }));
   app.get('*', serveStatic({ path: `${config.webDist}/index.html` }));

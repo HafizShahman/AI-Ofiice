@@ -24,7 +24,7 @@ const UNIT: Record<string, number> = { m: MINUTE, h: 60 * MINUTE, d: DAY };
 /**
  * Read a time off the start of "in 20m call Sam", "at 15:30 stand up", "tomorrow 9am pay rent" or
  * "daily 9:00 standup". `tz` is the browser's `getTimezoneOffset()` (minutes, UTC minus local), so
- * "15:30" means the user's 15:30 even when the server runs in another zone (DDEV is UTC).
+ * "15:30" means the user's 15:30 even when the server runs in another zone.
  */
 export function parseWhen(input: string, now: number, tz = new Date().getTimezoneOffset()): When | null {
   let s = input.trim();

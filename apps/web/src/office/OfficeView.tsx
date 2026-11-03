@@ -11,6 +11,7 @@ import { Icon } from '../ui/icons.tsx';
 import { anchorEls } from '../scene/anchors.ts';
 import { BoardHotspot } from '../ui/MissionBoard.tsx';
 import { Helper } from './Helper.tsx';
+import { Helper3D } from './Helper3D.tsx';
 import { useCeoRounds } from './useCeoRounds.ts';
 import { MEETING_MAX_S, useMeeting } from './useMeeting.ts';
 
@@ -18,8 +19,8 @@ const HELPER = new URLSearchParams(location.search).has('helper');
 /** ?view=2d / ?view=3d overrides the setting for this tab */
 const VIEW = new URLSearchParams(location.search).get('view');
 
-/** The 3D room unless ?view=2d, the setting is off, or the ?helper editor (2D only) is open. */
-export const wants3d = (pref: boolean) => !HELPER && (VIEW === '3d' || (VIEW !== '2d' && pref));
+/** The 3D room unless ?view=2d or the setting is off. ?helper follows the same choice (3D editor or, with ?view=2d, the painted-office editor). */
+export const wants3d = (pref: boolean) => VIEW === '3d' || (VIEW !== '2d' && pref);
 
 /** The live scene, shared with the roster/inspector/keyboard so they can drive the camera. */
 export const sceneRef: { current: OfficeSceneApi | null } = { current: null };
@@ -71,11 +72,12 @@ export function OfficeView({ children }: { children?: ReactNode }) {
     };
   }, [view3d]);
 
-  // the researcher only exists while an agent has that role (roles follow the work), so a standby one reads at the archive
+  // the researcher only exists while an agent has that role (roles follow the work), so a standby one sits at a free desk (the archive when all are taken)
   const researcherSpot = useMemo(() => {
     if (list.some((a) => a.role === 'researcher' && a.status !== 'leaving')) return null;
     const taken = new Set(list.map((a) => a.spot));
-    return PROPS.filter((p) => p.kind === 'archive').flatMap(spotIds).find((sp) => !taken.has(sp)) ?? null;
+    const free = (kind: string) => PROPS.filter((p) => p.kind === kind).flatMap(spotIds).find((sp) => !taken.has(sp));
+    return free('desk') ?? free('archive') ?? null;
   }, [list]);
 
   const meeting = useMeeting((s) => s.on);
@@ -203,7 +205,7 @@ export function OfficeView({ children }: { children?: ReactNode }) {
       </div>
 
       {!wallboard && <CameraControls />}
-      {HELPER ? <Helper /> : children}
+      {HELPER ? (view3d ? <Helper3D /> : <Helper />) : children}
     </div>
   );
 }

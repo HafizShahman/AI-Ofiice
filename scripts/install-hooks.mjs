@@ -2,11 +2,11 @@
 // Adds the AI Office HTTP hooks to Claude Code's settings (with a backup), or removes them with --remove.
 //
 //   npm run install-hooks                                   # local:  http://127.0.0.1:3334/hook
-//   npm run install-hooks -- --url http://ai-office.ddev.site:3334/hook   # DDEV
+//   npm run install-hooks -- --url http://host:3334/hook    # another server URL
 //   npm run install-hooks -- --env                          # send the token from $OFFICE_TOKEN instead of storing it
 //   npm run uninstall-hooks
 //
-// Run this on your Mac (not inside DDEV): it edits ~/.claude/settings.json.
+// It edits ~/.claude/settings.json.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, chmodSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';

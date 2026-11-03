@@ -7,7 +7,7 @@ import { label, type HookPayload } from './hooks.ts';
  * Claude Code's hooks say how hard an agent is thinking (`effort`) but not which model it runs on.
  * The transcript does: every assistant line carries `message.model`. We read the tail of that file,
  * keep that one short string and drop the rest; nothing else from the transcript is stored or sent.
- * This only works where the server can see ~/.claude (on your Mac, not inside DDEV).
+ * This only works where the server can see ~/.claude (i.e. on the machine Claude Code runs on).
  */
 
 const TAIL = 256 * 1024;
@@ -48,7 +48,7 @@ export async function readModel(file: string): Promise<string | null> {
       }
     }
   } catch {
-    /* no such file from here, e.g. the server runs in DDEV */
+    /* no such file from here, e.g. the server runs on another machine */
   } finally {
     await fh?.close().catch(() => {});
   }

@@ -92,7 +92,6 @@ The server is the **single source of truth**. The browser only renders the state
 - **Safe to re-run:** it replaces only its own entries, which it marks with an `X-AI-Office` header. `npm run uninstall-hooks` removes them.
 - **Events:** 14 of them: `SessionStart/End`, `UserPromptSubmit`, `Pre/PostToolUse`, `PostToolUseFailure`, `SubagentStart/Stop`, `Stop`, `Notification`, `PermissionRequest`, `TaskCreated/Completed`, `PreCompact`.
 - **Token:** read from `.data/token` (mode 0600) and written into the header. `--env` sends `$OFFICE_TOKEN` instead.
-- **DDEV:** use `--url http://ai-office.ddev.site:3334/hook`.
 
 ```json
 { "type": "http", "url": "http://127.0.0.1:3334/hook", "timeout": 1,
@@ -318,21 +317,7 @@ In-memory state is authoritative while the server runs. Agents aren't persisted:
 | `POST` | `/api/ai` | `{ on }`: Office Manager on/off (saved in `settings`) · built |
 | `WS` | `/ws` | First message is a `snapshot`, then batched arrays (about 20 per second) of `agent`, `agent.remove`, `event`, `sim` · built |
 
-The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TOKEN` overrides it. One port (`:3334`) serves the hooks, the API, the WebSocket and the built UI. In dev, Vite runs on `:5273` (`VITE_PORT`; `:5173` inside DDEV) and proxies `/api` and `/ws`.
-
----
-
-## 12b. Running on DDEV
-
-`.ddev/config.yaml` (DDEV v1.24.3+):
-
-- **Container:** `webserver_type: generic` and `nodejs_version: "24"`.
-- **Daemons:** `npm run dev:server` and `npm run dev:web` run as `web_extra_daemons`.
-- **Ports:** `3334` (server; https 3335) and `5173` (Vite; http 5172). Local `npm run dev` uses `5273` so it never collides with DDEV's router; `.ddev/config.yaml` sets `VITE_PORT=5173`.
-- **Bindings:** `HOST=0.0.0.0` and `VITE_HOST=0.0.0.0` so the DDEV router can reach the server and Vite. `VITE_HMR_HOST=ai-office.ddev.site` makes hot reload work through the router.
-- **Install:** a `post-start` hook runs `npm install` and restarts the daemons.
-- **Hooks:** Claude Code runs on the Mac, so install the hooks there with `--url http://ai-office.ddev.site:3334/hook` (plain http, so Node doesn't need to trust mkcert).
-- **Chat AI (P3):** `claude -p` isn't in the container. The plan is to install the Claude CLI in `.ddev/web-build/Dockerfile` and authenticate with a `claude setup-token` token in `.ddev/.env` (`CLAUDE_CODE_OAUTH_TOKEN`).
+The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TOKEN` overrides it. One port (`:3334`) serves the hooks, the API, the WebSocket and the built UI. In dev, Vite runs on `:5273` (`VITE_PORT`) and proxies `/api` and `/ws`.
 
 ---
 
@@ -344,7 +329,6 @@ The token is generated on first run into `.data/token` (mode `0600`). `OFFICE_TO
 AI-Ofiice/
 ├─ package.json              ✓ npm workspaces; dev / build / start / install-hooks
 ├─ office.config.json        ✓ desks, timers, role regex, AI settings
-├─ .ddev/config.yaml         ✓
 ├─ docs/PLAN.md, UI-PLAN.md  ✓
 ├─ apps/
 │  ├─ server/src/

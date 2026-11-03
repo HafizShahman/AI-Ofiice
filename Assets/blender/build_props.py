@@ -119,8 +119,9 @@ def _lid(b, x0, x1, hinge, top, thick, m_body, m_screen):
 
 
 # --------------------------------------------------------------------------- assets
-def a_workstation(b, C, sc, coll, variant="A"):
-    zt = 1.0
+def a_workstation(b, C, sc, coll, variant="A", on=False):
+    zt = 0.78                                      # desk top height (m), a seated-desk height under the robots
+    scr = C["scr_cyan"] if on else C["screen"]     # screens glow while an agent sits at the desk
     b.box(-0.8, 0.8, -0.4, 0.4, zt - 0.05, zt, C["desk_top"])
     b.box(-0.8, 0.8, 0.4, 0.412, zt - 0.045, zt - 0.01, C["neon_s"])
     for x in (-0.66, 0.66):
@@ -136,7 +137,7 @@ def a_workstation(b, C, sc, coll, variant="A"):
         b.beam((0, -0.3, zt + 0.42), (cx, -0.29, zt + 0.42), 0.035, C["metal"])
         b.box(cx - 0.31, cx + 0.31, -0.29, -0.25, zt + 0.24, zt + 0.62, C["dark"])
         b.quad([(cx - 0.29, -0.248, zt + 0.26), (cx + 0.29, -0.248, zt + 0.26), (cx + 0.29, -0.248, zt + 0.6), (cx - 0.29, -0.248, zt + 0.6)],
-               C["scr_cyan"], normal=N(0, 1, 0))
+               scr, normal=N(0, 1, 0))
     # keyboard, mouse, mini PC
     b.box(-0.24, 0.2, 0.06, 0.22, zt, zt + 0.022, C["dark"])
     b.box(-0.225, 0.185, 0.075, 0.205, zt + 0.022, zt + 0.027, C["metal"])
@@ -145,15 +146,15 @@ def a_workstation(b, C, sc, coll, variant="A"):
     b.box(-0.74, -0.52, -0.181, -0.176, zt + 0.06, zt + 0.07, C["neon"])
     if variant == "A":           # laptop
         b.box(0.44, 0.74, -0.02, 0.2, zt, zt + 0.018, C["metal"])
-        _lid(b, 0.44, 0.74, (-0.02, zt + 0.018), (-0.07, zt + 0.22), 0.012, C["metal"], C["scr_cyan"])
+        _lid(b, 0.44, 0.74, (-0.02, zt + 0.018), (-0.07, zt + 0.22), 0.012, C["metal"], scr)
     else:                        # tablet on a stand
-        _lid(b, 0.46, 0.72, (0.05, zt), (-0.01, zt + 0.18), 0.012, C["dark"], C["scr_cyan"])
+        _lid(b, 0.46, 0.72, (0.05, zt), (-0.01, zt + 0.18), 0.012, C["dark"], scr)
         b.box(-0.5, -0.42, -0.1, -0.02, zt, zt + 0.12, C["dark"])
 
 
 def a_ceo_table(b, C, sc, coll):
     """The CEO's table on the deck: wider top, gold trim, three monitors, a nameplate for visitors."""
-    zt, L, Wd = 1.0, 1.0, 0.48            # half length (x), half depth (d)
+    zt, L, Wd = 0.78, 1.0, 0.48           # top height (same as the workstations), half length (x), half depth (d)
     b.box(-L, L, -Wd, Wd, zt - 0.06, zt, C["desk_top"])
     for d0, d1 in ((Wd, Wd + 0.015), (-Wd - 0.015, -Wd)):
         b.box(-L, L, d0, d1, zt - 0.055, zt - 0.01, C["brass"])
@@ -404,6 +405,8 @@ def a_todo_board(b, C, sc, coll):
 ASSETS = [
     ("Workstation", a_workstation, {"variant": "A"}, "Furniture", "Standing desk, dual monitors, laptop", "furniture/standing-desk-*.png"),
     ("Workstation_Tablet", a_workstation, {"variant": "B"}, "Furniture", "Standing desk, dual monitors, tablet", "furniture/standing-desk-*.png"),
+    ("Workstation_On", a_workstation, {"variant": "A", "on": True}, "Furniture", "Standing desk, screens on (agent at work)", "furniture/standing-desk-*.png"),
+    ("Workstation_Tablet_On", a_workstation, {"variant": "B", "on": True}, "Furniture", "Standing desk, tablet, screens on (agent at work)", "furniture/standing-desk-*.png"),
     ("CEO_Table", a_ceo_table, {}, "Furniture", "CEO table: wide desk, gold trim, three monitors, nameplate", "furniture/standing-desk-*.png"),
     ("FilingCabinet", a_cabinet, {}, "Furniture", "Archive filing cabinet, closed", "furniture/filling-closed.png"),
     ("FilingCabinet_Open", a_cabinet, {"open_": True}, "Furniture", "Archive filing cabinet, drawer open", "furniture/filling-open.png"),
@@ -449,6 +452,8 @@ ALT_OF = {
     "CoffeeMachine": ("CoffeeMachine_On", "busy", "coffee"),      # a robot drinking at it
     "FilingCabinet": ("FilingCabinet_Open", "busy", "archive"),   # a robot reading at it
     "Printer": ("Printer_Broken", "fail", "printer"),            # a tool call failed
+    "Workstation": ("Workstation_On", "busy", "desk"),            # an agent working at it (one prop per desk, see below)
+    "Workstation_Tablet": ("Workstation_Tablet_On", "busy", "desk"),
 }
 
 # where robots stand to use the new props (plan x, d, z)
@@ -531,6 +536,8 @@ def build_props(write_catalog_file=True):
         if asset not in ALT_OF:
             continue
         variant, when, prop = ALT_OF[asset]
+        if prop == "desk":                       # each desk is its own prop: the spot id is desk-<n>
+            prop = "desk-" + name.split("_")[1]
         ob = bpy.data.objects.new("PropAlt_" + name, masters[variant].data)
         ob.location = V(x, d, z)
         ob.rotation_euler = (0, 0, rz)

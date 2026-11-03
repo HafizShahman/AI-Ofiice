@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useSound } from '../sound/engine.ts';
 import { previewVolume, toggleSound } from '../sound/cues.ts';
 import { useDaylight, type Mode, type Phase } from '../scene/daylight.ts';
-import { setAi, toggleSim, useOffice } from '../store.ts';
+import { setAi, useOffice } from '../store.ts';
 import { Icon } from './icons.tsx';
 import { useUi } from './prefs.ts';
 import { useCounts } from './util.tsx';
@@ -31,7 +31,6 @@ function DayNightChip() {
 
 export function TopBar() {
   const c = useCounts();
-  const sim = useOffice((s) => s.sim);
   const connection = useOffice((s) => s.connection);
   const chatOpen = useOffice((s) => s.chatOpen);
   const ai = useOffice((s) => s.ai);
@@ -74,14 +73,6 @@ export function TopBar() {
       </nav>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => toggleSim(!sim)}
-          aria-pressed={sim}
-          className={`${chip} rounded-full ${sim ? 'border-accent-2/50 bg-accent-2/10 text-[#f0abfc]' : 'border-border text-muted hover:text-text'}`}
-        >
-          <Icon name={sim ? 'stop' : 'play'} size={12} />
-          {sim ? 'Demo running · stop' : 'Run demo'}
-        </button>
         <button
           onClick={() => void setAi(!ai.enabled)}
           aria-pressed={ai.enabled}

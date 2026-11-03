@@ -799,6 +799,94 @@
  },
  "alts": [
   {
+   "node": "Prop_Desk_1",
+   "alt": "PropAlt_Desk_1",
+   "when": "busy",
+   "prop": "desk-1",
+   "at": [
+    6.385,
+    9.3,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_2",
+   "alt": "PropAlt_Desk_2",
+   "when": "busy",
+   "prop": "desk-2",
+   "at": [
+    6.385,
+    11.0,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_3",
+   "alt": "PropAlt_Desk_3",
+   "when": "busy",
+   "prop": "desk-3",
+   "at": [
+    8.374,
+    9.3,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_4",
+   "alt": "PropAlt_Desk_4",
+   "when": "busy",
+   "prop": "desk-4",
+   "at": [
+    8.374,
+    11.0,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_7",
+   "alt": "PropAlt_Desk_7",
+   "when": "busy",
+   "prop": "desk-7",
+   "at": [
+    10.406,
+    9.3,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_5",
+   "alt": "PropAlt_Desk_5",
+   "when": "busy",
+   "prop": "desk-5",
+   "at": [
+    10.406,
+    11.0,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_8",
+   "alt": "PropAlt_Desk_8",
+   "when": "busy",
+   "prop": "desk-8",
+   "at": [
+    12.402,
+    9.3,
+    0.05
+   ]
+  },
+  {
+   "node": "Prop_Desk_6",
+   "alt": "PropAlt_Desk_6",
+   "when": "busy",
+   "prop": "desk-6",
+   "at": [
+    12.402,
+    11.0,
+    0.05
+   ]
+  },
+  {
    "node": "Prop_Archive_1",
    "alt": "PropAlt_Archive_1",
    "when": "busy",

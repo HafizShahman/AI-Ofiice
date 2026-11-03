@@ -150,7 +150,7 @@ export class Chat {
         this.post({ channel, author, name: asAgent?.name, body: r.text, agentId: asAgent?.id });
       }
       else this.system(channel, r.text, 'fail');
-      if (!r.ok && (r.text.includes("Couldn't find") || r.text.includes('inside DDEV'))) this.ai = { ...this.ai, available: false };
+      if (!r.ok && (r.text.includes("Couldn't find"))) this.ai = { ...this.ai, available: false };
     } finally {
       this.busy.delete(channel);
       this.deps.push({ type: 'typing', channel, on: false });

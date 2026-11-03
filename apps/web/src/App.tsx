@@ -15,6 +15,7 @@ import { BoardCard, BoardOverlay, ReminderAlerts } from './ui/MissionBoard.tsx';
 import { ShortcutSheet } from './ui/ShortcutSheet.tsx';
 import { SimRibbon } from './ui/SimRibbon.tsx';
 import { Wallboard } from './ui/Wallboard.tsx';
+import { useDesktopBadge } from './ui/desktop.ts';
 import { useBlockedNotifications } from './ui/notify.ts';
 import { initPrefs, useUi } from './ui/prefs.ts';
 import { STATUS_KEYS } from './ui/util.tsx';
@@ -28,6 +29,7 @@ function Office() {
   useEffect(() => initPrefs(), []);
   useSoundCues();
   useBlockedNotifications();
+  useDesktopBadge();
   useKeyboard();
   useSimLink();
   const chatOpen = useOffice((s) => s.chatOpen);

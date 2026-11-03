@@ -18,6 +18,7 @@ import { loadRobot, RobotRig, type Pose, type RigTemplate } from './robot.ts';
 import type { CameraView, OfficeSceneApi, SceneAgent, Spatial } from './sceneApi.ts';
 import { WallClock } from './WallClock.ts';
 import room from './room3d.json';
+import overrides from './room3d.overrides.json';
 
 /**
  * The office as a real 3D room: apps/web/public/models/room.glb, built in Blender by
@@ -69,12 +70,17 @@ interface Spot3 {
   prop: string;
 }
 
+type SpotDef = { pos: number[]; face: number[] | null; prop: string };
+/** Points moved in ?helper (room3d.overrides.json) win over Blender's, so a rebuild keeps them. */
+const SPOT_OVERRIDES = (overrides as { spots: Record<string, { pos: number[]; face: number[] | null }> }).spots;
 const SPOTS = new Map<string, Spot3>(
-  Object.entries(room.spots as Record<string, { pos: number[]; face: number[] | null; prop: string }>).map(([id, s]) => [
-    id,
-    { pos: W3(s.pos), face: s.face ? W3(s.face) : null, prop: s.prop },
-  ]),
+  Object.entries(room.spots as Record<string, SpotDef>).map(([id, s]) => {
+    const o = SPOT_OVERRIDES[id] ?? s;
+    return [id, { pos: W3(o.pos), face: o.face ? W3(o.face) : null, prop: s.prop }];
+  }),
 );
+/** plan [x, d, height] ← world (three.js is x, height, d) */
+const PLAN = (v: THREE.Vector3): number[] => [v.x, v.z, v.y];
 const DOOR = SPOTS.get('door')!;
 
 interface AltDef {
@@ -338,6 +344,36 @@ export class OfficeScene3D implements OfficeSceneApi {
     return id ? (SPOTS.get(id) ?? null) : null;
   }
 
+  /** ?helper: every spot as plan [x, d, height] (face: null when the spot has none). */
+  spotPoints(): { id: string; pos: number[]; face: number[] | null }[] {
+    return [...SPOTS].map(([id, s]) => ({ id, pos: PLAN(s.pos), face: s.face ? PLAN(s.face) : null }));
+  }
+
+  /** ?helper: move a spot's point (plan [x, d, height]). Robots use it from their next walk. */
+  setSpotPoint(id: string, which: 'pos' | 'face', p: number[]): void {
+    const s = SPOTS.get(id);
+    const v = s && (which === 'pos' ? s.pos : s.face);
+    v?.copy(W3(p));
+    this.dirty = true;
+  }
+
+  /** ?helper: screen px of a plan point [x, d, height]. */
+  projectPlan(p: number[]): Pt {
+    this.applyCamera(this.view);
+    const s = this.toScreen(W3(p));
+    return [s.x, s.y];
+  }
+
+  /** ?helper: plan [x, d] under a screen point, on the horizontal plane at `height`. */
+  planAt(sx: number, sy: number, height: number): Pt {
+    this.applyCamera(this.view);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2((sx / this.w) * 2 - 1, -(sy / this.h) * 2 + 1), this.camera);
+    const hit = new THREE.Vector3();
+    ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), hit);
+    return [hit.x, hit.z];
+  }
+
   setAgents(agents: SceneAgent[]): void {
     if (!this.template) {
       this.pending = agents;
@@ -480,6 +516,8 @@ export class OfficeScene3D implements OfficeSceneApi {
         on = false;
         for (const b of this.bots.values()) {
           if (b.path.length || b.removing || b.target.prop !== a.def.prop) continue;
+          // a desk screen is on only while its agent is at work (idle or on a break leaves it dark)
+          if (a.def.prop.startsWith('desk-') && b.agent?.status !== 'working' && b.agent?.status !== 'blocked') continue;
           // the nearest machine of that kind to where the robot stands
           let best: Alt | null = null;
           let bestD = Infinity;

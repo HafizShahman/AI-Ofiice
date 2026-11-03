@@ -7,14 +7,12 @@ dist/
 Assets/source/
 Assets/mini_robot/*
 !Assets/mini_robot/license.txt
-# DDEV runtime files
-.ddev/.env
-.ddev/.homeadditions
-.ddev/.global_commands
-.ddev/db_snapshots
-
 # older copies of the plans; the current ones live in docs/
 Claude outputs/
 
 # per-project Claude Code hooks hold the office token
 .claude/settings.local.json*
+
+# desktop app (Tauri) build output
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/

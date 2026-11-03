@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -6,7 +6,7 @@ import { basename, isAbsolute, join } from 'node:path';
 import type { DispatchState } from '@ai-office/shared';
 import { saveSetting, setting } from './db.ts';
 import { redact } from './hooks.ts';
-import { checkAvailable, claudeCommand, parseStream } from './manager.ts';
+import { checkAvailable, parseStream, spawnClaude } from './manager.ts';
 
 /**
  * Tasks from the office: start a NEW `claude -p` agent in a project folder. Nothing is sent into a
@@ -187,7 +187,7 @@ export class Dispatcher {
 
     const id = randomUUID();
     const args = ['-p', '--permission-mode', this.mode, '--output-format', 'stream-json', '--verbose', '--session-id', id];
-    const child = spawn(claudeCommand(), args, { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawnClaude(args, { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] });
     const run: Running = { id, task: text, cwd: dir, project: basename(dir), startedAt: Date.now(), child, stopped: false };
     this.running.set(id, run);
     saveSetting('dispatch_last', dir);

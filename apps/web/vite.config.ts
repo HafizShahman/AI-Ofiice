@@ -5,44 +5,53 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 const api = `http://127.0.0.1:${process.env.PORT ?? 3334}`;
-// 5173 belongs to DDEV's router (see .ddev/config.yaml, which sets VITE_PORT=5173), so a local run uses 5273.
+// 5273 so a local run doesn't collide with other Vite projects on 5173.
 const port = Number(process.env.VITE_PORT ?? 5273);
 
-/** Dev only: lets the ?helper layout editor save src/scene/props.json. Not part of the built app. */
+/** Dev only: lets the ?helper layout editors save src/scene/props.json (2D) and room3d.overrides.json (3D). Not part of the built app. */
 function helperSave(): Plugin {
-  const file = fileURLToPath(new URL('./src/scene/props.json', import.meta.url));
+  const files: Record<string, { file: string; valid: (d: Record<string, unknown>) => boolean }> = {
+    '/__helper/props': {
+      file: fileURLToPath(new URL('./src/scene/props.json', import.meta.url)),
+      valid: (d) => Array.isArray(d.props) && !!(d.nav as { areas?: unknown } | undefined)?.areas && !!d.room,
+    },
+    '/__helper/room3d': {
+      file: fileURLToPath(new URL('./src/scene/room3d.overrides.json', import.meta.url)),
+      valid: (d) => typeof d.spots === 'object' && d.spots !== null && !Array.isArray(d.spots),
+    },
+  };
   return {
     name: 'ai-office-helper-save',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/__helper/props', (req, res) => {
-        const sameOrigin = !req.headers.origin || new URL(req.headers.origin).host === req.headers.host;
-        if (req.method !== 'POST' || !sameOrigin) {
-          res.statusCode = 405;
-          return res.end();
-        }
-        let body = '';
-        req.on('data', (c: Buffer) => {
-          body += c;
-          if (body.length > 500_000) req.destroy();
-        });
-        req.on('end', () => {
-          try {
-            const d = JSON.parse(body);
-            if (!Array.isArray(d.props) || !d.nav?.areas || !d.room) throw new Error('not a props.json');
-            writeFileSync(file, body);
-            res.statusCode = 204;
-          } catch {
-            res.statusCode = 400;
+      for (const [url, { file, valid }] of Object.entries(files)) {
+        server.middlewares.use(url, (req, res) => {
+          const sameOrigin = !req.headers.origin || new URL(req.headers.origin).host === req.headers.host;
+          if (req.method !== 'POST' || !sameOrigin) {
+            res.statusCode = 405;
+            return res.end();
           }
-          res.end();
+          let body = '';
+          req.on('data', (c: Buffer) => {
+            body += c;
+            if (body.length > 500_000) req.destroy();
+          });
+          req.on('end', () => {
+            try {
+              if (!valid(JSON.parse(body))) throw new Error('not a layout file');
+              writeFileSync(file, body);
+              res.statusCode = 204;
+            } catch {
+              res.statusCode = 400;
+            }
+            res.end();
+          });
         });
-      });
+      }
     },
   };
 }
 
-// Inside DDEV set VITE_HOST=0.0.0.0 and VITE_HMR_HOST=ai-office.ddev.site (see .ddev/config.yaml).
 export default defineConfig({
   plugins: [react(), tailwindcss(), helperSave()],
   build: { chunkSizeWarningLimit: 1000 }, // three.js is most of it; PLAN §14 budget is 450 KB gzipped

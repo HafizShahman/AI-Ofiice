@@ -189,7 +189,7 @@ export class Office {
   private create(e: OfficeEvent): AgentState {
     const isMain = !e.parentAgentId;
     const pinned = rolePinned(e.agentType, isMain);
-    // the wording of the task ("research the DDEV docs") decides the role of a subagent whose type doesn't
+    // the wording of the task ("research the Vite docs") decides the role of a subagent whose type doesn't
     const hint = !isMain && !pinned ? this.hints.get(e.parentAgentId!)?.shift() : undefined;
     const role = hint ?? resolveRole(e.agentType, isMain);
     const same = [...this.agents.values()].filter((x) => x.role === role).length;

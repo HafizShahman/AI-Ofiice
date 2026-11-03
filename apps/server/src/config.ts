@@ -32,7 +32,7 @@ function loadToken(): string {
 
 export const config = {
   ...file,
-  host: process.env.HOST ?? '127.0.0.1', // DDEV sets 0.0.0.0
+  host: process.env.HOST ?? '127.0.0.1',
   port: Number(process.env.PORT ?? file.server.port),
   dataDir,
   token: loadToken(),

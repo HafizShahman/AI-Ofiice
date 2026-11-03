@@ -33,6 +33,45 @@ const COMMANDS = [
   ['/help', 'all commands'],
 ] as const;
 
+const W_KEY = 'ai-office.chatWidth';
+const W_MIN = 300;
+const clampW = (w: number) => Math.round(Math.min(Math.max(w, W_MIN), Math.max(W_MIN, Math.min(900, window.innerWidth - 360))));
+
+/** Chat width: drag the left edge; double-click resets. Saved in localStorage. */
+function useChatWidth() {
+  const [width, setWidth] = useState<number | null>(() => {
+    const v = Number(localStorage.getItem(W_KEY));
+    return v > 0 ? clampW(v) : null;
+  });
+  const asideRef = useRef<HTMLElement>(null);
+  const onDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const start = asideRef.current?.getBoundingClientRect().width ?? 430;
+    let last = start;
+    const move = (ev: PointerEvent) => {
+      last = clampW(start + (startX - ev.clientX));
+      setWidth(last);
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      localStorage.setItem(W_KEY, String(last));
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
+  const reset = () => {
+    localStorage.removeItem(W_KEY);
+    setWidth(null);
+  };
+  return { width, asideRef, onDown, reset };
+}
+
 /** Channels (#office, #activity), one DM per robot, and the composer. UI-PLAN §4 / PLAN §10. */
 export function SidePanel() {
   usePrefs((s) => s.clock24); // timestamps follow the 12/24 h setting
@@ -46,8 +85,24 @@ export function SidePanel() {
   const open = (c: string) => useOffice.getState().openChannel(c);
   const activityCount = useMemo(() => events.filter((e) => e.kind !== 'tool_end' && e.kind !== 'tool_start').length, [events]);
 
+  const { width, asideRef, onDown, reset } = useChatWidth();
+
   return (
-    <aside aria-label="Chat" className="flex min-h-0 w-[430px] shrink-0 border-l border-border bg-[#0b1220] max-[1280px]:w-[320px]">
+    <aside
+      ref={asideRef}
+      aria-label="Chat"
+      style={width ? { width } : undefined}
+      className="relative flex min-h-0 w-[430px] shrink-0 border-l border-border bg-[#0b1220] max-[1280px]:w-[320px]"
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize chat (double-click to reset)"
+        title="Drag to resize · double-click to reset"
+        onPointerDown={onDown}
+        onDoubleClick={reset}
+        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none transition-colors hover:bg-accent/40 active:bg-accent/60"
+      />
       <nav className="flex w-[140px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2 text-[13px] max-[1280px]:hidden">
         <div className="px-2 pb-1 pt-2 font-mono text-[11px] tracking-[0.1em] text-muted">CHANNELS</div>
         <ChannelBtn active={channel === 'office'} onClick={() => open('office')} label="# office" count={unread.office} />

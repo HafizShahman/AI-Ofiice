@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptions } from 'node:child_process';
-import { accessSync, constants, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 /** What every command-line AI (Codex) needs: find the binary, check it runs, ask it one question. */
 
@@ -43,13 +43,28 @@ export function makeCli(name: string, configured: () => string | undefined): Cli
     return name;
   };
   let command = find();
+  const spawnCommand = (args: string[], options: SpawnOptions): ChildProcessWithoutNullStreams => {
+    // npm installs CLI entry points as .cmd shims on Windows. Node cannot execute those shims
+    // directly (spawn throws EINVAL), so bypass the shim and run the package entry point.
+    if (WINDOWS && /\.(cmd|bat)$/i.test(command) && name === 'codex') {
+      const entry = join(dirname(command), 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
+      if (existsSync(entry)) return spawn(process.execPath, [entry, ...args], options) as ChildProcessWithoutNullStreams;
+    }
+    return spawn(command, args, options) as ChildProcessWithoutNullStreams;
+  };
   const cli: Cli = {
     command: () => command,
-    spawn: (args, options) => spawn(command, args, options) as ChildProcessWithoutNullStreams,
+    spawn: spawnCommand,
     check() {
       command = find();
       return new Promise((resolve) => {
-        const child = cli.spawn(['--version'], { cwd: tmpdir(), stdio: 'ignore' });
+        let child: ChildProcessWithoutNullStreams;
+        try {
+          child = cli.spawn(['--version'], { cwd: tmpdir(), stdio: 'ignore' });
+        } catch {
+          resolve(false);
+          return;
+        }
         const t = setTimeout(() => {
           child.kill();
           resolve(false);

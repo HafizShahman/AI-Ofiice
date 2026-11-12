@@ -196,6 +196,8 @@ export function parseStream(out: string): { text: string; artifacts: ArtifactRef
 }
 
 export interface AskOptions {
+  /** `claude --model` alias; default is config.ai.model */
+  model?: string;
   /** Let the run use the Artifact tool (and Write, only inside its own scratch folder). */
   artifacts?: boolean;
 }
@@ -209,7 +211,7 @@ export function ask(system: string, prompt: string, opts: AskOptions = {}): Prom
   const workDir = join(tmpdir(), 'ai-office', 'artifacts', sessionId);
   const args = [
     '-p',
-    '--model', config.ai.model,
+    '--model', opts.model ?? config.ai.model,
     '--system-prompt', system,
     '--tools', opts.artifacts ? 'Artifact,Write,Read' : '',
     '--max-turns', opts.artifacts ? '10' : '1',

@@ -60,7 +60,7 @@ export const useOffice = create<OfficeStore>((set) => ({
   selected: new URLSearchParams(location.search).get('agent'),
   following: false,
   chatOpen: true,
-  ai: { enabled: false, model: 'haiku', contextEvents: 30, available: null },
+  ai: { enabled: false, provider: 'claude', providers: [], codexEnabled: false, model: 'haiku', contextEvents: 30, available: null },
   doneToday: 0,
   approvalsOn: false,
   approvalWaitSec: 45,
@@ -105,7 +105,7 @@ export const useOffice = create<OfficeStore>((set) => ({
           names = { ...names, ...Object.fromEntries(m.state.agents.map((a) => [a.id, a.name])) };
           events = m.state.events;
           sim = m.state.sim;
-          ai = m.state.ai;
+          ai = withProviders(m.state.ai);
           doneToday = m.state.doneToday;
           dispatch = m.state.dispatch;
           board = m.state.board;
@@ -127,7 +127,7 @@ export const useOffice = create<OfficeStore>((set) => ({
         } else if (m.type === 'sim') {
           sim = m.on;
         } else if (m.type === 'ai') {
-          ai = m.ai;
+          ai = withProviders(m.ai);
         } else if (m.type === 'board') {
           board = m.items;
         } else if (m.type === 'board.pin') {
@@ -209,6 +209,11 @@ export async function sendChat(channel: string, body: string): Promise<void> {
   await fetch(`/api/chat/${encodeURIComponent(channel)}`, { ...JSON_POST, body: JSON.stringify({ body, tz: new Date().getTimezoneOffset() }) });
 }
 
+/** An older server (started before the provider setting existed) sends no providers: fill them in so the UI never breaks. */
+function withProviders(ai: AiState): AiState {
+  return { ...ai, provider: ai.provider ?? 'claude', providers: ai.providers ?? [], codexEnabled: ai.codexEnabled ?? false };
+}
+
 export async function setAi(on: boolean): Promise<void> {
   await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify({ on }) });
 }
@@ -221,7 +226,7 @@ export async function setApprovalWait(waitSec: number): Promise<void> {
   await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ waitSec }) });
 }
 
-export async function setAiOptions(opts: { model?: string; contextEvents?: number }): Promise<void> {
+export async function setAiOptions(opts: { codex?: boolean; provider?: string; model?: string; contextEvents?: number }): Promise<void> {
   await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify(opts) });
 }
 
@@ -235,8 +240,8 @@ export async function decideApproval(id: string, decision: 'allow' | 'deny' | 't
 }
 
 /** Start a task: a new agent in a known project folder. Opens its DM on success; resolves to an error text or null. */
-export async function sendTask(task: string, cwd: string, channel: string): Promise<string | null> {
-  const r = await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ task, cwd, channel }) });
+export async function sendTask(task: string, cwd: string, channel: string, provider?: string): Promise<string | null> {
+  const r = await fetch('/api/dispatch', { ...JSON_POST, body: JSON.stringify({ task, cwd, channel, provider }) });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; id?: string };
   if (!r.ok || !j.ok || !j.id) return j.error ?? 'Could not start the task.';
   useOffice.getState().openChannel(`dm:${j.id}`);

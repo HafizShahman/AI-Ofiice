@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
-import type { AskQuestion, EventKind, OfficeEvent } from '@ai-office/shared';
+import type { AskQuestion, EventKind, OfficeEvent, Provider } from '@ai-office/shared';
 import { roleFromText } from './roles.ts';
 
 /** The parts of a Claude Code hook payload we read. Everything else is ignored and never stored. */
@@ -43,7 +43,7 @@ const KIND: Record<string, EventKind> = {
 };
 
 /** Turn one hook POST into an office event, or null for events we don't visualise. */
-export function normalize(p: HookPayload): OfficeEvent | null {
+export function normalize(p: HookPayload, provider?: Provider): OfficeEvent | null {
   const name = p.hook_event_name ?? '';
   let kind = KIND[name];
   if (!kind || !p.session_id) return null;
@@ -69,6 +69,7 @@ export function normalize(p: HookPayload): OfficeEvent | null {
     agentId: isSub ? String(p.agent_id) : p.session_id,
     parentAgentId: isSub ? p.session_id : undefined,
     kind,
+    provider,
     tool: p.tool_name,
     summary: p.tool_name ? summarize(p.tool_name, p.tool_input ?? {}) || undefined : undefined,
     cwd,

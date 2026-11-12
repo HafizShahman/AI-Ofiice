@@ -45,6 +45,9 @@ export type PropKind =
   | 'bell'
   | 'door';
 
+/** Which coding agent produced an event. Absent = claude (older events). */
+export type Provider = 'claude' | 'codex';
+
 export type EventKind =
   | 'spawn'
   | 'leave'
@@ -68,6 +71,7 @@ export interface OfficeEvent {
   agentId: string;
   parentAgentId?: string;
   kind: EventKind;
+  provider?: Provider;
   tool?: string;
   /** short and redacted, e.g. "Edit TaskCard.tsx", "npm test" */
   summary?: string;
@@ -89,6 +93,7 @@ export interface AgentState {
   parentId?: string;
   name: string;
   role: Role;
+  provider?: Provider;
   agentType?: string;
   /** full model id, e.g. "claude-sonnet-5-5". Read from the agent's transcript, so unknown when the server can't see it. */
   model?: string;
@@ -148,7 +153,7 @@ export interface DispatchState {
   /** the folder used last, preselected in the composer */
   last: string | null;
   /** tasks still running (their agent's DM channel is dm:<id>) */
-  running: { id: string; task: string; project: string; startedAt: number }[];
+  running: { id: string; task: string; project: string; startedAt: number; provider?: Provider }[];
   /** null = not checked yet; false = the `claude` command could not be run */
   available: boolean | null;
 }
@@ -190,8 +195,27 @@ export interface ApprovalsState {
 }
 
 /** The Office Manager AI (runs `claude -p` on the server's machine). */
+/** One AI the office can run (the manager's answers, tasks from the office). */
+export interface AiProviderInfo {
+  id: Provider;
+  label: string;
+  /** models offered in Settings ("default" = whatever that tool's own config says) */
+  models: string[];
+  /** the model chosen for this provider */
+  model: string;
+  /** null = not checked yet; false = its command could not be run */
+  available: boolean | null;
+}
+
 export interface AiState {
   enabled: boolean;
+  /** the default AI: answers questions and runs tasks unless one asks for another */
+  provider: Provider;
+  /** the AIs switched on (Claude Code always; Codex when the Settings checkbox is ticked) */
+  providers: AiProviderInfo[];
+  /** Settings → "Use Codex" */
+  codexEnabled: boolean;
+  /** the default provider's model */
   model: string;
   /** how many recent events the manager is shown */
   contextEvents: number;

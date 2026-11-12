@@ -1,7 +1,8 @@
-import type { AgentState, AiState, ChatMessage, ServerMessage } from '@ai-office/shared';
+import type { AgentState, AiState, ChatMessage, Provider, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
 import { channelHistory, clearChannel, countEvents, recentEvents, saveMessage, saveSetting, setting } from './db.ts';
-import { ask, buildContext, checkAvailable, describeAgent, systemPrompt } from './manager.ts';
+import { buildContext, describeAgent, systemPrompt } from './manager.ts';
+import { askAi, check, info, isProvider, LABEL, MODELS as PROVIDER_MODELS, PROVIDERS, validModel } from './providers/ai.ts';
 import type { Office } from './state.ts';
 import type { Dispatcher } from './dispatch.ts';
 import { parseWhen, type Board } from './board.ts';
@@ -26,7 +27,7 @@ const HELP = [
   '`/status` office summary · `/agents` who is here · `/who <role or name>`',
   '`/todo <task>` and `/remind <when> <what>` go to the CEO, who pins them on the mission board (`in 20m`, `at 15:30`, `tomorrow 9am`, `daily 9:00`) · `/board` lists it',
   '`/task <what to do>` start a new agent on it (in a DM: in that agent’s project; in #office: `/task @project <what>`) · `/tasks on|off|stop` · needs `/tasks on`',
-  '`/ai on` · `/ai off` the Office Manager · `/approvals on|off` answer permission prompts here · `/sim on|off` the demo · `/clear` this channel',
+  '`/ai on|off` the Office Manager · `/ai use claude|codex` and `/task --codex <what>` once Codex is ticked in Settings · `/approvals on|off` answer permission prompts here · `/sim on|off` the demo · `/clear` this channel',
   'Anything else is a question for the Office Manager (when AI is on). It can make a page (“make a chart of today’s activity”) and read a pasted `claude.ai/artifact` link.',
 ].join('\n');
 
@@ -43,6 +44,10 @@ export class Chat {
   private deps: ChatDeps;
   private busy = new Set<string>();
   ai: AiState;
+  private provider: Provider = 'claude';
+  private models: Record<Provider, string> = { claude: config.ai.model, codex: 'default' };
+  private avail: Record<Provider, boolean | null> = { claude: null, codex: null };
+  private codexOn = setting('codex_enabled') === '1';
 
   constructor(deps: ChatDeps) {
     this.deps = deps;
@@ -52,8 +57,44 @@ export class Chat {
     if (model && MODELS.includes(model)) config.ai.model = model;
     const ctx = Number(setting('ai_context_events'));
     if (ctx >= 5 && ctx <= 100) config.ai.contextEvents = ctx;
-    this.ai = { enabled: saved ? saved === '1' : config.ai.enabled, model: config.ai.model, contextEvents: config.ai.contextEvents, available: null };
-    if (this.ai.enabled) void this.refreshAvailable();
+    const prov = setting('ai_provider');
+    if (isProvider(prov) && this.on(prov)) this.provider = prov;
+    this.models.claude = config.ai.model;
+    for (const p of PROVIDERS) {
+      const m = p === 'claude' ? null : setting(`ai_model_${p}`);
+      if (m && validModel(p, m)) this.models[p] = m;
+    }
+    this.ai = this.build(saved ? saved === '1' : config.ai.enabled);
+    void this.refreshAvailable(true);
+  }
+
+  /** The state the browser sees: the default provider's model and availability, plus every provider. */
+  private build(enabled: boolean): AiState {
+    return {
+      enabled,
+      provider: this.provider,
+      providers: info(this.models, this.avail).filter((p) => this.on(p.id)),
+      codexEnabled: this.codexOn,
+      model: this.models[this.provider],
+      contextEvents: config.ai.contextEvents,
+      available: this.avail[this.provider],
+    };
+  }
+
+  private publish(enabled = this.ai.enabled): void {
+    this.ai = this.build(enabled);
+    this.deps.push({ type: 'ai', ai: this.ai });
+  }
+
+  /** Claude Code is always on; the others only when switched on in Settings. */
+  private on(p: Provider): boolean {
+    return p === 'claude' || this.codexOn;
+  }
+
+  /** The AI to use for one thing: the default, or the one a task asked for. */
+  choice(p?: Provider): { provider: Provider; model: string } {
+    const provider = p && this.on(p) ? p : this.provider;
+    return { provider, model: this.models[provider] };
   }
 
   history(channel: string): ChatMessage[] {
@@ -72,32 +113,56 @@ export class Chat {
   }
 
   async setAi(on: boolean): Promise<void> {
-    this.ai = { ...this.ai, enabled: on };
     saveSetting('ai_enabled', on ? '1' : '0');
-    this.deps.push({ type: 'ai', ai: this.ai });
+    this.publish(on);
     if (on) await this.refreshAvailable();
   }
 
-  setModel(model: string): void {
-    if (!MODELS.includes(model)) return;
-    config.ai.model = model;
-    saveSetting('ai_model', model);
-    this.ai = { ...this.ai, model };
-    this.deps.push({ type: 'ai', ai: this.ai });
+  async setCodexEnabled(on: boolean): Promise<void> {
+    this.codexOn = on;
+    saveSetting('codex_enabled', on ? '1' : '0');
+    if (!on && this.provider === 'codex') {
+      this.provider = 'claude';
+      saveSetting('ai_provider', 'claude');
+    }
+    this.publish();
+    if (on) await this.refreshAvailable(true);
+  }
+
+  async setProvider(p: Provider): Promise<void> {
+    if (!isProvider(p) || !this.on(p)) return;
+    this.provider = p;
+    saveSetting('ai_provider', p);
+    this.publish();
+    await this.refreshAvailable();
+  }
+
+  /** The model for a provider (default: the default provider). */
+  setModel(model: string, p: Provider = this.provider): void {
+    if (!validModel(p, model)) return;
+    this.models[p] = model;
+    if (p === 'claude') {
+      config.ai.model = model;
+      saveSetting('ai_model', model);
+    } else saveSetting(`ai_model_${p}`, model);
+    this.publish();
   }
 
   setContextEvents(n: number): void {
     const contextEvents = Math.round(Math.min(100, Math.max(5, n)));
     config.ai.contextEvents = contextEvents;
     saveSetting('ai_context_events', String(contextEvents));
-    this.ai = { ...this.ai, contextEvents };
-    this.deps.push({ type: 'ai', ai: this.ai });
+    this.publish();
   }
 
-  private async refreshAvailable(): Promise<void> {
-    const available = await checkAvailable();
-    this.ai = { ...this.ai, available };
-    this.deps.push({ type: 'ai', ai: this.ai });
+  private async refreshAvailable(all = false): Promise<void> {
+    const which = (all ? PROVIDERS : [this.provider]).filter((p) => this.on(p));
+    await Promise.all(
+      which.map(async (p) => {
+        this.avail[p] = await check(p);
+      }),
+    );
+    this.publish();
   }
 
   /** A user message arrived on a channel. */
@@ -108,7 +173,7 @@ export class Chat {
     this.post({ channel, author: 'you', body: text });
     if (text.startsWith('/')) return this.command(channel, text, tz);
     if (!this.ai.enabled) {
-      this.system(channel, 'The Office Manager is off, so nobody reads questions here. Turn it on with `/ai on` (it runs `claude -p` with Haiku), or try `/status`.');
+      this.system(channel, `The Office Manager is off, so nobody reads questions here. Turn it on with \`/ai on\` (it runs ${LABEL[this.provider]}), or try \`/status\`.`);
       return;
     }
     if (this.busy.has(channel)) {
@@ -142,7 +207,9 @@ export class Chat {
         sim: this.deps.sim.running,
       });
       const prompt = `OFFICE STATE\n${context}\n\nQUESTION\n${question}`;
-      const r = await ask(systemPrompt(asAgent, { artifacts: true }), prompt, { artifacts: true });
+      const { provider, model } = this.choice();
+      const artifacts = provider === 'claude'; // only Claude Code has the Artifact tool
+      const r = await askAi(systemPrompt(asAgent, { artifacts }), prompt, { provider, model, artifacts });
       if (r.ok) {
         const author = asAgent ? 'agent' : 'manager';
         // each page the manager published gets a card (link + source), then its answer
@@ -150,11 +217,11 @@ export class Chat {
         this.post({ channel, author, name: asAgent?.name, body: r.text, agentId: asAgent?.id });
       }
       else this.system(channel, r.text, 'fail');
-      if (!r.ok && (r.text.includes("Couldn't find"))) this.ai = { ...this.ai, available: false };
+      if (!r.ok && r.text.includes("Couldn't find")) this.avail[provider] = false;
     } finally {
       this.busy.delete(channel);
       this.deps.push({ type: 'typing', channel, on: false });
-      this.deps.push({ type: 'ai', ai: this.ai });
+      this.publish();
     }
   }
 
@@ -180,6 +247,12 @@ export class Chat {
   private task(channel: string, text: string): void {
     const d = this.deps.dispatch;
     let rest = text.replace(/^\/task\s*/i, '');
+    let provider: Provider | undefined;
+    const flag = rest.match(/^--(claude|codex)\s+/i);
+    if (flag) {
+      provider = flag[1].toLowerCase() as Provider;
+      rest = rest.slice(flag[0].length);
+    }
     const projects = d.state().projects;
     const dm = this.agentFor(channel);
     let cwd: string | undefined = dm?.cwd;
@@ -194,19 +267,24 @@ export class Chat {
     cwd ??= d.state().last ?? (projects.length === 1 ? projects[0].path : undefined);
     if (!rest.trim()) return this.system(channel, 'Usage: `/task [@project] <what to do>`');
     if (!cwd) return this.system(channel, `Which project? Use \`/task @project …\`. Known: ${projects.map((p) => `\`${p.name}\``).join(', ') || 'none yet (start Claude Code in a folder once)'}.`, 'warn');
-    this.dispatchTask(channel, rest, cwd);
+    this.dispatchTask(channel, rest, cwd, provider);
   }
 
   /** Start a task and tell the channel (and #office) where to follow it. */
-  dispatchTask(channel: string, task: string, cwd: string): { ok: boolean; error?: string; id?: string } {
-    const r = this.deps.dispatch.start(task, cwd);
+  dispatchTask(channel: string, task: string, cwd: string, provider?: Provider): { ok: boolean; error?: string; id?: string } {
+    if (provider && !this.on(provider)) {
+      const error = 'Codex is off. Tick “Use Codex” in Settings → Office Manager first.';
+      this.system(channel, error, 'warn');
+      return { ok: false, error };
+    }
+    const r = this.deps.dispatch.start(task, cwd, this.choice(provider));
     if (!r.ok) {
       this.system(channel, r.error, 'warn');
       return { ok: false, error: r.error };
     }
     const brief = task.trim().replace(/\s+/g, ' ').slice(0, 160);
     this.post({ channel: `dm:${r.id}`, author: 'you', body: task.trim().slice(0, 4000) });
-    const line = `▶ New task in \`${r.project}\`: ${brief}. A new agent is starting; its answer will land in its DM.`;
+    const line = `▶ New task in \`${r.project}\`: ${brief}. A new ${LABEL[this.choice(provider).provider]} agent is starting; its answer will land in its DM.`;
     this.system(channel, line, 'info');
     if (channel !== `dm:${r.id}`) this.system(`dm:${r.id}`, `Started from ${channel === 'office' ? '#office' : 'a DM'} in \`${r.project}\`.`, 'info');
     return { ok: true, id: r.id };
@@ -306,9 +384,24 @@ export class Chat {
         );
       }
       case 'ai': {
-        if (arg !== 'on' && arg !== 'off') return this.system(channel, `The Office Manager is ${this.ai.enabled ? 'on' : 'off'} (${this.ai.model}). Use \`/ai on\` or \`/ai off\`.`);
-        void this.setAi(arg === 'on');
-        return this.system(channel, arg === 'on' ? `Office Manager on (${this.ai.model}). Each question runs one \`claude -p\` call.` : 'Office Manager off. Slash commands still work.');
+        const [sub, which] = arg.split(/\s+/);
+        if (sub === 'use') {
+          if (which === 'codex' && !this.codexOn) return this.system(channel, 'Codex is off. Tick “Use Codex” in Settings → Office Manager first.', 'warn');
+          if (!isProvider(which)) return this.system(channel, `Which one? \`/ai use ${this.ai.providers.map((p) => p.id).join('` or `/ai use ')}\`.`, 'warn');
+          void this.setProvider(which);
+          return this.system(channel, `Default AI is now ${LABEL[which]} (${this.models[which]}). Questions and new tasks use it. A task can pick another one: \`/task --${PROVIDERS.find((p) => p !== which)} …\`.`);
+        }
+        if (sub === 'model') {
+          if (!which || !validModel(this.provider, which)) return this.system(channel, `Models for ${LABEL[this.provider]}: ${PROVIDER_MODELS[this.provider].map((m) => `\`${m}\``).join(', ')}.`, 'warn');
+          this.setModel(which);
+          return this.system(channel, `${LABEL[this.provider]} model: \`${which}\`.`);
+        }
+        if (sub !== 'on' && sub !== 'off') {
+          const list = this.ai.providers.map((p) => `${p.id === this.provider ? '▸ ' : '  '}${p.label} (${p.model})${p.available === false ? ' — not found on this machine' : ''}`).join('\n');
+          return this.system(channel, `The Office Manager is ${this.ai.enabled ? 'on' : 'off'}. AIs:\n${list}\nUse \`/ai on|off\`, \`/ai use <${PROVIDERS.join('|')}>\`, \`/ai model <name>\`.`);
+        }
+        void this.setAi(sub === 'on');
+        return this.system(channel, sub === 'on' ? `Office Manager on (${LABEL[this.provider]}, ${this.models[this.provider]}). Each question runs one ${LABEL[this.provider]} call.` : 'Office Manager off. Slash commands still work.');
       }
       default:
         return this.system(channel, `Unknown command \`/${cmd}\`.\n${HELP}`);

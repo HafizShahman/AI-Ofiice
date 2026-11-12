@@ -200,6 +200,7 @@ export class Office {
       parentId: e.parentAgentId,
       name: ROLE_LABEL[role] + (same ? ` #${same + 1}` : ''),
       role,
+      provider: e.provider,
       agentType: e.agentType,
       project: e.project,
       cwd: e.cwd,

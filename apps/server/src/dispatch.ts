@@ -1,12 +1,15 @@
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { realpathSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
-import type { DispatchState } from '@ai-office/shared';
+import type { DispatchState, Provider } from '@ai-office/shared';
 import { saveSetting, setting } from './db.ts';
 import { redact } from './hooks.ts';
-import { checkAvailable, parseStream, spawnClaude } from './manager.ts';
+import { parseStream, spawnClaude } from './manager.ts';
+import { check } from './providers/ai.ts';
+import { execArgs, spawnCodex } from './providers/codex.ts';
+import { LABEL } from './providers/ai.ts';
 
 /**
  * Tasks from the office: start a NEW `claude -p` agent in a project folder. Nothing is sent into a
@@ -27,6 +30,8 @@ const MAX_OUT = 4_000_000;
 export interface DispatchDeps {
   /** is there a robot for this session id yet? (the hooks may not be installed) */
   hasAgent(id: string): boolean;
+  /** the default AI, for the availability check */
+  provider(): Provider;
   /** an update to publish */
   changed(): void;
   /** the task finished, failed or was stopped */
@@ -42,6 +47,7 @@ interface Running {
   project: string;
   startedAt: number;
   child: ChildProcess;
+  provider: Provider;
   stopped: boolean;
 }
 
@@ -146,7 +152,7 @@ export class Dispatcher {
       mode: this.mode,
       projects: this.folders(),
       last: setting('dispatch_last') ?? null,
-      running: [...this.running.values()].map((r) => ({ id: r.id, task: r.task.slice(0, 200), project: r.project, startedAt: r.startedAt })),
+      running: [...this.running.values()].map((r) => ({ id: r.id, task: r.task.slice(0, 200), project: r.project, startedAt: r.startedAt, provider: r.provider })),
       available: this.available,
     };
   }
@@ -166,7 +172,7 @@ export class Dispatcher {
   }
 
   private async refreshAvailable(): Promise<void> {
-    this.available = await checkAvailable();
+    this.available = await check(this.deps.provider());
     this.deps.changed();
   }
 
@@ -177,7 +183,7 @@ export class Dispatcher {
   }
 
   /** Start a task. Returns the new agent's id (its DM is `dm:<id>`) or why not. */
-  start(task: string, cwd: string): { ok: true; id: string; project: string } | { ok: false; error: string } {
+  start(task: string, cwd: string, ai: { provider: Provider; model: string } = { provider: 'claude', model: '' }): { ok: true; id: string; project: string } | { ok: false; error: string } {
     if (!this.enabled) return { ok: false, error: 'Tasks from the office are off. Turn them on in Settings, or with `/tasks on`.' };
     const text = task.trim().slice(0, MAX_TASK);
     if (!text) return { ok: false, error: 'Write the task first.' };
@@ -186,9 +192,16 @@ export class Dispatcher {
     if (this.running.size >= MAX_RUNNING) return { ok: false, error: `${MAX_RUNNING} tasks are already running. Wait for one to finish or stop it.` };
 
     const id = randomUUID();
-    const args = ['-p', '--permission-mode', this.mode, '--output-format', 'stream-json', '--verbose', '--session-id', id];
-    const child = spawnClaude(args, { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] });
-    const run: Running = { id, task: text, cwd: dir, project: basename(dir), startedAt: Date.now(), child, stopped: false };
+    const codex = ai.provider === 'codex';
+    const label = LABEL[ai.provider];
+    // Codex can't be given a session id: its answer comes back through a file and its robot takes our id
+    // through AI_OFFICE_TASK_ID (scripts/codex-hook.mjs adds it to every hook payload)
+    const scratch = codex ? mkdtempSync(join(tmpdir(), 'ai-office-task-')) : '';
+    const answerFile = join(scratch, 'answer.txt');
+    const child = codex
+      ? spawnCodex(execArgs({ cwd: dir, sandbox: this.mode === 'plan' ? 'read-only' : 'workspace-write', model: ai.model, lastMessageFile: answerFile }), { cwd: dir, env: { ...process.env, AI_OFFICE_TASK_ID: id }, stdio: ['pipe', 'pipe', 'pipe'] })
+      : spawnClaude(['-p', '--permission-mode', this.mode, '--output-format', 'stream-json', '--verbose', '--session-id', id], { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] });
+    const run: Running = { id, task: text, cwd: dir, project: basename(dir), startedAt: Date.now(), child, provider: ai.provider, stopped: false };
     this.running.set(id, run);
     saveSetting('dispatch_last', dir);
 
@@ -201,6 +214,7 @@ export class Dispatcher {
       clearTimeout(timer);
       clearTimeout(watch);
       this.running.delete(id);
+      if (scratch) rmSync(scratch, { recursive: true, force: true });
       this.deps.changed();
       this.deps.finished({ id, project: run.project, task: text, ok, stopped: run.stopped, text: body });
     };
@@ -218,11 +232,19 @@ export class Dispatcher {
     });
     child.stderr.on('data', (d: Buffer) => (err += d));
     child.on('error', (e: NodeJS.ErrnoException) =>
-      finish(false, e.code === 'ENOENT' ? "Couldn't find Claude Code on this machine. Set `ai.command` in office.config.json." : `Couldn't start Claude Code: ${e.message}`),
+      finish(false, e.code === 'ENOENT' ? `Couldn't find ${label} on this machine. ${codex ? 'Install it, or set `OFFICE_CODEX_COMMAND` / `ai.codexCommand`.' : 'Set `ai.command` in office.config.json.'}` : `Couldn't start ${label}: ${e.message}`),
     );
     child.on('close', (code) => {
       // redact line by line so the reply keeps its line breaks
-      const text = parseStream(out).text.split('\n').map((l) => redact(l, 1000)).join('\n').slice(0, MAX_TASK);
+      let reply = '';
+      if (codex) {
+        try {
+          reply = readFileSync(answerFile, 'utf8').trim();
+        } catch {
+          reply = out.trim().split('\n').slice(-20).join('\n');
+        }
+      } else reply = parseStream(out).text;
+      const text = reply.split('\n').map((l) => redact(l, 1000)).join('\n').slice(0, MAX_TASK);
       if (run.stopped) return finish(false, text || 'Stopped.');
       if (code === 0 && text) return finish(true, text);
       finish(false, `Exit ${code}. ${redact(err || text, 300)}`);

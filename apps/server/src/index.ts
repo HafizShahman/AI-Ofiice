@@ -9,6 +9,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
 import { askQuestions, normalize, permissionDetail, redact, type HookPayload } from './hooks.ts';
+import { isProvider } from './providers/ai.ts';
+import { fromCodex } from './providers/codex.ts';
 import { Approvals } from './approvals.ts';
 import { Dispatcher } from './dispatch.ts';
 import { Board } from './board.ts';
@@ -73,6 +75,7 @@ const approvals = new Approvals((m) => outbox.push(m));
 const board = new Board((m) => outbox.push(m));
 const dispatcher: Dispatcher = new Dispatcher({
   hasAgent: (id) => office.agents.has(id),
+  provider: () => chat?.choice().provider ?? 'claude', // called from the constructor, before chat exists
   changed: () => outbox.push({ type: 'dispatch', dispatch: dispatcher.state() }),
   finished: (r) => chat!.taskFinished(r),
   noRobot: (id, project) =>
@@ -91,12 +94,12 @@ function apply(e: OfficeEvent) {
 }
 
 /** Hook payloads from the demo (real hooks go through POST /hook). */
-function ingest(p: HookPayload) {
+function ingest(p: HookPayload, provider?: 'codex') {
   if (p.session_id && ownSessions.has(p.session_id)) return; // the Office Manager's own claude -p run
-  const e = normalize(p);
+  const e = normalize(p, provider);
   if (!e) return;
   apply(e);
-  if (e.kind !== 'leave') models.note(e.agentId, e.kind, p);
+  if (e.kind !== 'leave' && !provider) models.note(e.agentId, e.kind, p);
   // a question the hold hook didn't catch (or can't hold) still gets its text on the agent's card
   if (p.hook_event_name === 'PreToolUse' && p.tool_name === 'AskUserQuestion') {
     const questions = askQuestions(p.tool_input ?? {});
@@ -221,6 +224,15 @@ app.post('/hook', async (c) => {
   return c.body(null, 200);
 });
 
+// Codex CLI command hooks (scripts/codex-hook.mjs) post here. Read-only: the answer is always empty,
+// so Codex is never approved, denied or slowed down by the office.
+app.post('/hook/codex', async (c) => {
+  if (!authorised(c.req.header('authorization'))) return c.body(null, 401);
+  const payload = (await c.req.json().catch(() => null)) as HookPayload | null;
+  if (payload) setImmediate(() => ingest(fromCodex(payload), 'codex'));
+  return c.body(null, 200);
+});
+
 app.get('/api/health', (c) => c.json({ ok: true, agents: office.agents.size, sim: sim.running }));
 
 app.get('/api/state', (c) => c.json(snapshot()));
@@ -272,7 +284,7 @@ app.post('/api/approvals/:id', async (c) => {
 
 // Start a task (a new claude -p agent) in a known project folder; settings and stop
 app.post('/api/dispatch', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { task?: string; cwd?: string; channel?: string; enabled?: boolean; mode?: string; stop?: string; addFolder?: string; removeFolder?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { task?: string; cwd?: string; provider?: string; channel?: string; enabled?: boolean; mode?: string; stop?: string; addFolder?: string; removeFolder?: string };
   if (typeof body.addFolder === 'string') {
     const r = dispatcher.addFolder(body.addFolder);
     return c.json({ ...r, state: dispatcher.state() }, r.ok ? 200 : 400);
@@ -283,7 +295,7 @@ app.post('/api/dispatch', async (c) => {
   if (typeof body.stop === 'string') return c.json({ stopped: dispatcher.stop(body.stop) });
   if (typeof body.task === 'string') {
     const channel = typeof body.channel === 'string' && validChannel(body.channel) ? body.channel : 'office';
-    const r = chat!.dispatchTask(channel, body.task, typeof body.cwd === 'string' ? body.cwd : '');
+    const r = chat!.dispatchTask(channel, body.task, typeof body.cwd === 'string' ? body.cwd : '', isProvider(body.provider) ? body.provider : undefined);
     return c.json(r, r.ok ? 202 : 400);
   }
   return c.json(dispatcher.state());
@@ -310,11 +322,13 @@ app.post('/api/board', async (c) => {
 });
 
 app.post('/api/ai', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean; model?: string; contextEvents?: number };
+  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean; codex?: boolean; provider?: string; model?: string; contextEvents?: number };
+  if (typeof body.codex === 'boolean') await chat!.setCodexEnabled(body.codex);
+  if (isProvider(body.provider)) await chat!.setProvider(body.provider);
   if (typeof body.model === 'string') chat!.setModel(body.model);
   if (typeof body.contextEvents === 'number' && Number.isFinite(body.contextEvents)) chat!.setContextEvents(body.contextEvents);
   // a request that only changes the model or context size leaves on/off alone
-  if (body.on !== undefined || (body.model === undefined && body.contextEvents === undefined)) await chat!.setAi(body.on ?? !chat!.ai.enabled);
+  if (body.on !== undefined || (body.codex === undefined && body.provider === undefined && body.model === undefined && body.contextEvents === undefined)) await chat!.setAi(body.on ?? !chat!.ai.enabled);
   return c.json(chat!.ai);
 });
 

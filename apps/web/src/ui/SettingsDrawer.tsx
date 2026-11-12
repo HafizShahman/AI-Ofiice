@@ -48,7 +48,7 @@ export function SettingsDrawer() {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
           <General />
           <Scene />
-          <Ai info={info} />
+          <Ai />
           <Approvals info={info} />
           <Tasks />
           <Folder />
@@ -124,16 +124,42 @@ function Scene() {
   );
 }
 
-function Ai({ info }: { info: SettingsInfo | null }) {
+function Ai() {
   const ai = useOffice((s) => s.ai);
-  const models = info?.models ?? ['haiku', 'sonnet', 'opus'];
+  const current = ai.providers.find((p) => p.id === ai.provider);
+  const models = current?.models ?? ['haiku', 'sonnet', 'opus'];
+  const label = current?.label ?? 'Claude Code';
   return (
     <Section title="Office Manager (AI)">
-      <Row label="Answer questions with AI" hint="Runs one claude -p call per question, with your Claude Code login.">
+      <Row label="Answer questions with AI" hint={`Runs one ${label} call per question, with your own login.`}>
         <Toggle label="Office Manager" on={ai.enabled} onChange={(v) => void setAi(v)} />
       </Row>
-      {ai.enabled && ai.available === false && <Note tone="warn">The claude command was not found on the machine running the server.</Note>}
-      <Row label="Model" hint="Haiku is fastest and cheapest.">
+      <Row label="Use Codex" hint="Adds OpenAI Codex as a second AI. Needs the Codex CLI installed and signed in on this machine.">
+        <label className="flex items-center gap-2 text-[13px]">
+          <input type="checkbox" checked={ai.codexEnabled} onChange={(e) => void setAiOptions({ codex: e.target.checked })} className="h-4 w-4 accent-accent" />
+          Enable
+        </label>
+      </Row>
+      {ai.codexEnabled && ai.providers.some((p) => p.id === 'codex' && p.available === false) && (
+        <Note tone="warn">Codex was not found on the machine running the server. Install it (`npm i -g @openai/codex`), sign in once with `codex`, then restart the server.</Note>
+      )}
+      {ai.providers.length > 1 && (
+        <Row label="Default AI" hint="Answers questions and runs new tasks. A task can pick the other one in the composer, or with /task --codex.">
+          <select
+            aria-label="Default AI"
+            value={ai.provider}
+            onChange={(e) => void setAiOptions({ provider: e.target.value })}
+            className="h-8 rounded-md border border-border bg-surface-2 px-2 text-[13px]"
+          >
+            {ai.providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </Row>
+      )}
+      <Row label="Model" hint={ai.provider === 'claude' ? 'Haiku is fastest and cheapest.' : 'Default uses the model from that tool’s own config.'}>
         <select
           aria-label="Model"
           value={ai.model}

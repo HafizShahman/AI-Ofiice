@@ -216,6 +216,7 @@ export function chipLine(a: AgentState): string {
 
 /** "claude-sonnet-5-5" → "Sonnet 5.5", "claude-opus-4-1-20250805" → "Opus 4.1". Shapes it doesn't know pass through. */
 export function modelName(id: string): string {
+  if (/^(gpt|o\d|codex)/i.test(id)) return id.replace(/^gpt/i, 'GPT'); // other vendors' ids read fine as they are
   const parts = id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '').split('-');
   const words = parts.filter((p) => !/^\d+$/.test(p));
   const nums = parts.filter((p) => /^\d+$/.test(p));

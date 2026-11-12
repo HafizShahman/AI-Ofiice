@@ -27,7 +27,9 @@
     "uninstall-service": "node scripts/install-service.mjs --remove",
     "build:robot": "bash scripts/build-robot.sh",
     "build:room": "bash scripts/build-room.sh",
-    "build:art": "python3 scripts/build-art.py"
+    "build:art": "python3 scripts/build-art.py",
+    "install-codex-hooks": "node scripts/install-codex-hooks.mjs",
+    "uninstall-codex-hooks": "node scripts/install-codex-hooks.mjs --remove"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

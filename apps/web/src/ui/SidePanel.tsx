@@ -28,6 +28,8 @@ const COMMANDS = [
   ['/tasks stop', 'stop running tasks'],
   ['/ai on', 'turn the Office Manager on'],
   ['/ai off', 'turn it off'],
+  ['/ai use codex', 'make Codex the default AI'],
+  ['/ai use claude', 'make Claude Code the default AI'],
   ['/sim', 'start or stop the demo'],
   ['/clear', 'clear this channel'],
   ['/help', 'all commands'],
@@ -456,6 +458,10 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
   const [taskMode, setTaskMode] = useState(false);
   const [cwd, setCwd] = useState('');
   const [taskError, setTaskError] = useState<string | null>(null);
+  const providers = useOffice((s) => s.ai.providers);
+  const defaultProvider = useOffice((s) => s.ai.provider);
+  const [taskProvider, setTaskProvider] = useState('');
+  const aiFor = providers.some((p) => p.id === taskProvider) ? taskProvider : defaultProvider;
   const known = dispatch.projects.map((p) => p.path);
   const chosen = known.includes(cwd) ? cwd : agent && known.includes(agent.cwd) ? agent.cwd : dispatch.last && known.includes(dispatch.last) ? dispatch.last : (known[0] ?? '');
   const canTask = dispatch.enabled;
@@ -468,7 +474,7 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
     if (tasking) {
       if (!chosen) return setTaskError('No project folder yet: add one in Settings → Folder.');
       setTaskError(null);
-      void sendTask(body, chosen, channel).then((err) => {
+      void sendTask(body, chosen, channel, aiFor).then((err) => {
         if (err) setTaskError(err);
         else {
           setText('');
@@ -531,6 +537,15 @@ function Composer({ channel, agent }: { channel: string; agent?: AgentState }) {
                   </option>
                 ))}
               </select>
+              {providers.length > 1 && (
+                <select aria-label="AI" value={aiFor} onChange={(e) => setTaskProvider(e.target.value)} className="shrink-0 rounded border border-border bg-surface px-1.5 py-1">
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id} disabled={p.available === false}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <span className="shrink-0 text-muted" title={dispatch.mode === 'plan' ? 'The agent can read and investigate but changes nothing' : 'The agent may edit files in the project'}>
                 {dispatch.mode === 'plan' ? 'read-only' : 'can edit'}
               </span>

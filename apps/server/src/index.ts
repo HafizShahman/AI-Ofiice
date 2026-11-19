@@ -9,7 +9,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentState, OfficeEvent, ServerMessage } from '@ai-office/shared';
 import { config } from './config.ts';
 import { askQuestions, normalize, permissionDetail, redact, type HookPayload } from './hooks.ts';
-import { isProvider } from './providers/ai.ts';
+import { isProvider, PROVIDERS } from './providers/ai.ts';
 import { fromCodex } from './providers/codex.ts';
 import { Approvals } from './approvals.ts';
 import { Dispatcher } from './dispatch.ts';
@@ -79,7 +79,7 @@ const dispatcher: Dispatcher = new Dispatcher({
   changed: () => outbox.push({ type: 'dispatch', dispatch: dispatcher.state() }),
   finished: (r) => chat!.taskFinished(r),
   noRobot: (id, project) =>
-    chat!.system(`dm:${id}`, `No robot has appeared for this task in \`${project}\`. It is running, but the office only sees it if the hooks are installed: run \`npm run install-hooks\`. Its answer will still land here.`, 'warn'),
+    chat!.system(`dm:${id}`, `No robot has appeared for this task in \`${project}\`. It is running, but the office only sees it if that AI's hooks are installed: run \`npm run setup\`. Its answer will still land here.`, 'warn'),
 });
 process.on('exit', () => dispatcher.stopAll());
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(0));
@@ -322,13 +322,16 @@ app.post('/api/board', async (c) => {
 });
 
 app.post('/api/ai', async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean; codex?: boolean; provider?: string; model?: string; contextEvents?: number };
-  if (typeof body.codex === 'boolean') await chat!.setCodexEnabled(body.codex);
+  const body = (await c.req.json().catch(() => ({}))) as { on?: boolean; claude?: boolean; codex?: boolean; provider?: string; model?: string; contextEvents?: number; setup?: boolean };
+  // switch AIs on before off, so swapping the only one (Claude Code → Codex) in a single request works
+  const want = PROVIDERS.filter((p) => typeof body[p] === 'boolean').sort((a, b) => Number(body[b]) - Number(body[a]));
+  for (const p of want) await chat!.setProviderEnabled(p, body[p]!);
   if (isProvider(body.provider)) await chat!.setProvider(body.provider);
+  if (body.setup === true) chat!.markSetup();
   if (typeof body.model === 'string') chat!.setModel(body.model);
   if (typeof body.contextEvents === 'number' && Number.isFinite(body.contextEvents)) chat!.setContextEvents(body.contextEvents);
   // a request that only changes the model or context size leaves on/off alone
-  if (body.on !== undefined || (body.codex === undefined && body.provider === undefined && body.model === undefined && body.contextEvents === undefined)) await chat!.setAi(body.on ?? !chat!.ai.enabled);
+  if (body.on !== undefined || (!want.length && body.setup === undefined && body.provider === undefined && body.model === undefined && body.contextEvents === undefined)) await chat!.setAi(body.on ?? !chat!.ai.enabled);
   return c.json(chat!.ai);
 });
 
@@ -340,6 +343,7 @@ if (existsSync(config.webDist)) {
 
 const server = serve({ fetch: app.fetch, hostname: config.host, port: config.port }, (info) => {
   console.log(`AI Office server on http://${config.host}:${info.port}  (hook: POST /hook, ws: /ws)`);
+  if (!chat!.ai.setupDone) console.log('First time here? Run `npm run setup` to choose your AI (Claude Code, Codex or both) and install its hooks.');
 });
 
 // ── WebSocket ────────────────────────────────────────────────────────────────

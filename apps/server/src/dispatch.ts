@@ -93,7 +93,7 @@ export class Dispatcher {
     } catch {
       this.saved = [];
     }
-    if (this.enabled) void this.refreshAvailable();
+    if (this.enabled) setImmediate(() => void this.refreshAvailable()); // after index.ts has built the chat, so the default AI is known
   }
 
   /** Save a folder by path (`~` allowed). It must be an absolute path to an existing folder. */

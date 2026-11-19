@@ -60,7 +60,7 @@ export const useOffice = create<OfficeStore>((set) => ({
   selected: new URLSearchParams(location.search).get('agent'),
   following: false,
   chatOpen: true,
-  ai: { enabled: false, provider: 'claude', providers: [], codexEnabled: false, model: 'haiku', contextEvents: 30, available: null },
+  ai: { enabled: false, provider: 'claude', providers: [], claudeEnabled: true, codexEnabled: false, setupDone: true, model: 'haiku', contextEvents: 30, available: null },
   doneToday: 0,
   approvalsOn: false,
   approvalWaitSec: 45,
@@ -211,7 +211,7 @@ export async function sendChat(channel: string, body: string): Promise<void> {
 
 /** An older server (started before the provider setting existed) sends no providers: fill them in so the UI never breaks. */
 function withProviders(ai: AiState): AiState {
-  return { ...ai, provider: ai.provider ?? 'claude', providers: ai.providers ?? [], codexEnabled: ai.codexEnabled ?? false };
+  return { ...ai, provider: ai.provider ?? 'claude', providers: ai.providers ?? [], claudeEnabled: ai.claudeEnabled ?? true, codexEnabled: ai.codexEnabled ?? false, setupDone: ai.setupDone ?? true };
 }
 
 export async function setAi(on: boolean): Promise<void> {
@@ -226,7 +226,7 @@ export async function setApprovalWait(waitSec: number): Promise<void> {
   await fetch('/api/approvals', { ...JSON_POST, body: JSON.stringify({ waitSec }) });
 }
 
-export async function setAiOptions(opts: { codex?: boolean; provider?: string; model?: string; contextEvents?: number }): Promise<void> {
+export async function setAiOptions(opts: { claude?: boolean; codex?: boolean; provider?: string; model?: string; contextEvents?: number }): Promise<void> {
   await fetch('/api/ai', { ...JSON_POST, body: JSON.stringify(opts) });
 }
 

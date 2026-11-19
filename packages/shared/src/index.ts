@@ -211,15 +211,18 @@ export interface AiState {
   enabled: boolean;
   /** the default AI: answers questions and runs tasks unless one asks for another */
   provider: Provider;
-  /** the AIs switched on (Claude Code always; Codex when the Settings checkbox is ticked) */
+  /** the AIs switched on (at least one; chosen in `npm run setup` or Settings → Office Manager) */
   providers: AiProviderInfo[];
-  /** Settings → "Use Codex" */
+  /** Settings → "AIs in use" */
+  claudeEnabled: boolean;
   codexEnabled: boolean;
+  /** `npm run setup` has been run (or the AIs were chosen in Settings) */
+  setupDone: boolean;
   /** the default provider's model */
   model: string;
   /** how many recent events the manager is shown */
   contextEvents: number;
-  /** null = not checked yet; false = the `claude` command could not be run */
+  /** null = not checked yet; false = the default AI's command could not be run */
   available: boolean | null;
 }
 
@@ -273,6 +276,10 @@ export interface SettingsInfo {
   version: string;
   /** whether AI Office hooks were found in a Claude Code settings file the server can read (null = can't see ~/.claude) */
   hooks: { installed: boolean | null; file: string | null; url: string | null; permissionTimeoutSec: number | null };
+  /** the same for the Codex CLI's hooks file (null = no ~/.codex/hooks.json to look at) */
+  codexHooks: { installed: boolean | null; file: string | null };
+  /** process.platform of the machine the server runs on */
+  platform: string;
   roles: { role: string; match: string }[];
   timers: { idleAfterSec: number; breakAfterSec: number; chargeAfterSec: number; staleAfterSec: number; doneHoldSec: number };
   desks: number;

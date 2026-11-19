@@ -32,11 +32,26 @@ function findHooks(): SettingsInfo['hooks'] {
   return { installed: false, file: null, url: null, permissionTimeoutSec: null };
 }
 
+/** scripts/install-codex-hooks.mjs marks its entries by the forwarder's file name in the command. */
+function findCodexHooks(): SettingsInfo['codexHooks'] {
+  const file = join(homedir(), '.codex', 'hooks.json');
+  if (!existsSync(file)) return { installed: null, file: null };
+  try {
+    const hooks = (JSON.parse(readFileSync(file, 'utf8')) as { hooks?: Record<string, { hooks?: { command?: string }[] }[]> }).hooks ?? {};
+    const ours = Object.values(hooks).flat().some((g) => (g.hooks ?? []).some((h) => String(h.command ?? '').includes('codex-hook.mjs')));
+    return { installed: ours, file: ours ? file : null };
+  } catch {
+    return { installed: false, file: null };
+  }
+}
+
 export function settingsInfo(): SettingsInfo {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version?: string };
   return {
     version: pkg.version ?? '0.0.0',
     hooks: findHooks(),
+    codexHooks: findCodexHooks(),
+    platform: process.platform,
     roles: config.roles,
     timers: config.timers,
     desks: config.desks,

@@ -17,7 +17,7 @@ A light, local-only **isometric sci-fi office** where your Claude Code agents sh
 | --- | --- | --- | --- |
 | **Node.js 22.18+** (24 recommended) | [nodejs.org](https://nodejs.org) | [nodejs.org](https://nodejs.org) | your package manager, or [nodejs.org](https://nodejs.org) |
 | **Git** | `xcode-select --install` or [git-scm.com](https://git-scm.com) | [git-scm.com](https://git-scm.com) | `sudo apt install git` |
-| **Claude Code** (the agents you watch) | [claude.com/claude-code](https://claude.com/claude-code) | [claude.com/claude-code](https://claude.com/claude-code) | [claude.com/claude-code](https://claude.com/claude-code) |
+| **An AI to watch:** Claude Code and/or Codex CLI | [claude.com/claude-code](https://claude.com/claude-code) · `npm i -g @openai/codex` | same | same |
 | **Desktop app only:** Rust | [rustup.rs](https://rustup.rs) | rustup-init.exe from [rustup.rs](https://rustup.rs) + Visual Studio Build Tools (C++) | rustup, plus the packages under [Desktop app](#desktop-app) |
 | **Rebuilding the 3D room only:** Blender 5.x | [blender.org](https://www.blender.org) | [blender.org](https://www.blender.org) | [blender.org](https://www.blender.org) |
 
@@ -36,7 +36,7 @@ git clone https://github.com/HafizShahman/AI-Ofiice.git
 cd AI-Ofiice
 npm install
 npm run build                 # builds the web UI the server serves
-npm run install-hooks         # once: adds the hooks to ~/.claude/settings.json (a backup is made)
+npm run setup                 # once: asks which AI you use (Claude Code, Codex or both), the default and its model, then installs that AI's hooks (a backup is made)
 ```
 
 Open a new terminal before the first `npm run dev` if `node` was just installed.
@@ -50,7 +50,7 @@ git clone https://github.com/HafizShahman/AI-Ofiice.git
 cd AI-Ofiice
 npm install
 npm run build
-npm run install-hooks
+npm run setup
 ```
 
 Windows is **untested**. If `claude` isn't found by the server, install Claude Code with the official installer and open a new PowerShell window.
@@ -62,10 +62,12 @@ git clone https://github.com/HafizShahman/AI-Ofiice.git
 cd AI-Ofiice
 npm install
 npm run build
-npm run install-hooks
+npm run setup
 ```
 
 Linux is **untested**. The login service uses `systemd --user`, so it needs a desktop or user session with systemd.
+
+`npm run setup` detects your system and which CLIs are installed, then asks three things: which AI you use, which one is the default (it answers questions in the office and runs new tasks) and its model. Without questions: `npm run setup -- --ai codex --yes` (`--ai claude|codex|both`, `--default`, `--model`, `--server http://host:3334`, `--no-hooks`). Run it again any time to change the choice; Settings → Office Manager has the same switches. Codex support is new and tested on Windows by a contributor only.
 
 ## Choose how to open the office
 

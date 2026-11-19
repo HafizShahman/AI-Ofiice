@@ -26,8 +26,9 @@ const forwarder = join(ROOT, 'scripts', 'codex-hook.mjs');
 const MARK = 'codex-hook.mjs';
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PermissionRequest', 'Stop'];
 
-const q = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
-const command = `${url ? `AI_OFFICE_URL=${q(url)} ` : ''}${q(process.execPath)} ${q(forwarder)}`;
+// The URL goes in as an argument, not an env prefix: `VAR=x cmd` and single quotes mean nothing to Windows shells.
+const q = process.platform === 'win32' ? (s) => `"${s}"` : (s) => `'${s.replace(/'/g, `'\\''`)}'`;
+const command = `${q(process.execPath)} ${q(forwarder)}${url ? ` ${q(url)}` : ''}`;
 
 const cfg = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 if (existsSync(file)) {

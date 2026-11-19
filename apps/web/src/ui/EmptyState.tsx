@@ -8,17 +8,22 @@ export function EmptyState() {
   const sim = useOffice((s) => s.sim);
   const connection = useOffice((s) => s.connection);
   const events = useOffice((s) => s.events.length);
+  const ai = useOffice((s) => s.ai);
   const [copied, setCopied] = useState(false);
   if (!empty || sim || events > 0) return null;
 
-  const cmd = `npm run install-hooks -- --url ${location.protocol}//${location.hostname}:3334/hook`;
+  // one command for every machine and AI: it asks which AI you use and installs that AI's hooks
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  const cmd = local ? 'npm run setup' : `npm run setup -- --server ${location.protocol}//${location.hostname}:3334`;
+  const names = ai.providers.map((p) => (p.id === ai.provider && ai.providers.length > 1 ? `${p.label} (default)` : p.label)).join(' and ');
+  const which = ai.setupDone && names ? names : 'your AI';
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#070b14]/55 p-6">
       <section data-ui aria-labelledby="setup-title" className="pointer-events-auto flex w-full max-w-[520px] flex-col gap-5 rounded-[14px] border border-border bg-surface p-7 shadow-[0_16px_48px_rgb(0_0_0/.55)]">
         <div className="flex flex-col gap-1.5">
           <span className="font-mono text-[11px] tracking-[0.1em] text-accent">SETUP</span>
           <h1 id="setup-title" className="m-0 text-[22px] font-semibold">
-            Connect Claude Code to the office
+            Connect {which} to the office
           </h1>
           <p className="m-0 text-[14px] leading-normal text-muted">Robots appear as soon as the office receives its first hook event. Nothing leaves your machine.</p>
         </div>
@@ -27,9 +32,11 @@ export function EmptyState() {
           <li className="flex gap-3 rounded-[10px] border border-accent/40 bg-surface-2 p-3">
             <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-accent font-mono text-[12px] font-semibold text-[#04131a]">2</span>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <span className="font-semibold">Install the hooks</span>
+              <span className="font-semibold">{ai.setupDone ? 'Install the hooks' : 'Run setup'}</span>
               <span className="text-[13px] leading-normal text-muted">
-                Adds HTTP hooks to <span className="font-mono text-text">~/.claude/settings.json</span> and keeps a backup.
+                {ai.setupDone
+                  ? `Set up for ${names}. Run it again to install the hooks or to change the AI.`
+                  : 'Asks which AI you use (Claude Code, Codex or both), which one is the default, and installs the right hooks for this machine. A backup is kept.'}
               </span>
               <div className="flex items-center gap-2 rounded-lg border border-border bg-bg py-2 pl-3 pr-2">
                 <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[12px] text-[#67e8f9]">{cmd}</code>
@@ -42,7 +49,7 @@ export function EmptyState() {
               </div>
             </div>
           </li>
-          <Step n={3} title="Start any Claude Code session" sub="Waiting for the first event…" pulse />
+          <Step n={3} title={`Start any ${ai.setupDone && names ? ai.providers.map((p) => p.label).join(' or ') : 'Claude Code or Codex'} session`} sub="Waiting for the first event…" pulse />
         </ol>
         <div className="flex flex-wrap items-center gap-2.5 border-t border-border pt-4">
           <button

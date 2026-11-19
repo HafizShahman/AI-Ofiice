@@ -134,17 +134,31 @@ function Ai() {
       <Row label="Answer questions with AI" hint={`Runs one ${label} call per question, with your own login.`}>
         <Toggle label="Office Manager" on={ai.enabled} onChange={(v) => void setAi(v)} />
       </Row>
-      <Row label="Use Codex" hint="Adds OpenAI Codex as a second AI. Needs the Codex CLI installed and signed in on this machine.">
-        <label className="flex items-center gap-2 text-[13px]">
-          <input type="checkbox" checked={ai.codexEnabled} onChange={(e) => void setAiOptions({ codex: e.target.checked })} className="h-4 w-4 accent-accent" />
-          Enable
-        </label>
+      <Row label="AIs in use" hint="Tick the ones installed and signed in on this machine. At least one. `npm run setup` also installs their hooks.">
+        <div className="flex flex-col gap-1.5">
+          {(
+            [
+              ['claude', 'Claude Code', ai.claudeEnabled, ai.codexEnabled],
+              ['codex', 'Codex', ai.codexEnabled, ai.claudeEnabled],
+            ] as const
+          ).map(([id, name, on, otherOn]) => (
+            <label key={id} className="flex items-center gap-2 text-[13px]">
+              <input type="checkbox" checked={on} disabled={on && !otherOn} onChange={(e) => void setAiOptions({ [id]: e.target.checked })} className="h-4 w-4 accent-accent" />
+              {name}
+            </label>
+          ))}
+        </div>
       </Row>
-      {ai.codexEnabled && ai.providers.some((p) => p.id === 'codex' && p.available === false) && (
-        <Note tone="warn">Codex was not found on the machine running the server. Install it (`npm i -g @openai/codex`), sign in once with `codex`, then restart the server.</Note>
-      )}
+      {ai.providers
+        .filter((p) => p.available === false)
+        .map((p) => (
+          <Note key={p.id} tone="warn">
+            {p.label} was not found on the machine running the server.{' '}
+            {p.id === 'codex' ? 'Install it (`npm i -g @openai/codex`), sign in once with `codex`' : 'Install Claude Code and sign in once with `claude`'}, then restart the server.
+          </Note>
+        ))}
       {ai.providers.length > 1 && (
-        <Row label="Default AI" hint="Answers questions and runs new tasks. A task can pick the other one in the composer, or with /task --codex.">
+        <Row label="Default AI" hint="Answers questions and runs new tasks. A task can pick the other one in the composer, or with /task --claude or --codex.">
           <select
             aria-label="Default AI"
             value={ai.provider}
@@ -310,10 +324,26 @@ function Notifications() {
 
 function Hooks({ info, failed }: { info: SettingsInfo | null; failed: boolean }) {
   const [copied, setCopied] = useState(false);
+  const claudeOn = useOffice((s) => s.ai.claudeEnabled);
+  const codexOn = useOffice((s) => s.ai.codexEnabled);
   const h = info?.hooks;
+  const INSTALL = claudeOn && codexOn ? 'npm run setup' : codexOn ? 'npm run install-codex-hooks' : 'npm run install-hooks';
   return (
     <Section title="Hooks">
-      {failed ? (
+      {info && codexOn && (
+        <div className="mb-2">
+          {info.codexHooks.installed ? (
+            <Note tone="ok">
+              Codex: installed in <code className="break-all font-mono">{info.codexHooks.file}</code>
+            </Note>
+          ) : (
+            <Note tone="warn">
+              Codex: no AI Office hooks found in <code className="font-mono">~/.codex/hooks.json</code>. Run <code className="font-mono">npm run install-codex-hooks</code> on the machine Codex runs on.
+            </Note>
+          )}
+        </div>
+      )}
+      {!claudeOn ? null : failed ? (
         <Note tone="warn">Couldn’t reach the server.</Note>
       ) : !h ? (
         <Note>Checking…</Note>
@@ -329,7 +359,7 @@ function Hooks({ info, failed }: { info: SettingsInfo | null; failed: boolean })
           )}
         </Note>
       ) : (
-        <Note tone="warn">No AI Office hooks found in your Claude Code settings. Run the installer on your Mac:</Note>
+        <Note tone="warn">No AI Office hooks found in your Claude Code settings. Run the installer on the machine Claude Code runs on:</Note>
       )}
       <div className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2">
         <code className="min-w-0 flex-1 truncate font-mono text-[12px]">{INSTALL}</code>
@@ -347,7 +377,7 @@ function Hooks({ info, failed }: { info: SettingsInfo | null; failed: boolean })
           <Icon name={copied ? 'check' : 'copy'} size={14} />
         </button>
       </div>
-      <p className="mt-1.5 text-[12px] text-muted">To use another server URL add <code className="font-mono">--url http://host:3334/hook</code>. Hooks load without restarting Claude Code.</p>
+      <p className="mt-1.5 text-[12px] text-muted">To use another server URL add <code className="font-mono">{codexOn && !claudeOn ? '--url http://host:3334/hook/codex' : '--url http://host:3334/hook'}</code>. Hooks load without restarting the session.</p>
     </Section>
   );
 }

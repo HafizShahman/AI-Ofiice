@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Codex CLI command hook: forwards the hook's JSON (stdin) to the AI Office server and exits 0 with no
 // output, so Codex is never blocked or altered. Installed by `npm run install-codex-hooks`.
-//   AI_OFFICE_URL    default http://127.0.0.1:3334/hook/codex
+//   argv[2] or AI_OFFICE_URL    default http://127.0.0.1:3334/hook/codex
 //   AI_OFFICE_TOKEN  default: read from <project>/.data/token
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const url = process.env.AI_OFFICE_URL ?? 'http://127.0.0.1:3334/hook/codex';
+const url = process.argv[2] ?? process.env.AI_OFFICE_URL ?? 'http://127.0.0.1:3334/hook/codex';
 if (process.env.AI_OFFICE_INTERNAL) process.exit(0); // the office's own Codex runs (manager answers) are not agents to show
 let token = process.env.AI_OFFICE_TOKEN;
 if (!token) {

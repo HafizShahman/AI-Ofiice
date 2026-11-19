@@ -47,7 +47,9 @@ export class Chat {
   private provider: Provider = 'claude';
   private models: Record<Provider, string> = { claude: config.ai.model, codex: 'default' };
   private avail: Record<Provider, boolean | null> = { claude: null, codex: null };
-  private codexOn = setting('codex_enabled') === '1';
+  /** Which AIs are in use. Without a saved choice: Claude Code only (the behaviour before `npm run setup` existed). */
+  private enabled: Record<Provider, boolean> = { claude: setting('claude_enabled') !== '0', codex: setting('codex_enabled') === '1' };
+  private setupDone = setting('setup_done') === '1';
 
   constructor(deps: ChatDeps) {
     this.deps = deps;
@@ -58,7 +60,8 @@ export class Chat {
     const ctx = Number(setting('ai_context_events'));
     if (ctx >= 5 && ctx <= 100) config.ai.contextEvents = ctx;
     const prov = setting('ai_provider');
-    if (isProvider(prov) && this.on(prov)) this.provider = prov;
+    if (!PROVIDERS.some((p) => this.enabled[p])) this.enabled.claude = true;
+    this.provider = isProvider(prov) && this.on(prov) ? prov : PROVIDERS.find((p) => this.on(p))!;
     this.models.claude = config.ai.model;
     for (const p of PROVIDERS) {
       const m = p === 'claude' ? null : setting(`ai_model_${p}`);
@@ -74,7 +77,9 @@ export class Chat {
       enabled,
       provider: this.provider,
       providers: info(this.models, this.avail).filter((p) => this.on(p.id)),
-      codexEnabled: this.codexOn,
+      claudeEnabled: this.enabled.claude,
+      codexEnabled: this.enabled.codex,
+      setupDone: this.setupDone,
       model: this.models[this.provider],
       contextEvents: config.ai.contextEvents,
       available: this.avail[this.provider],
@@ -86,9 +91,9 @@ export class Chat {
     this.deps.push({ type: 'ai', ai: this.ai });
   }
 
-  /** Claude Code is always on; the others only when switched on in Settings. */
+  /** Is this AI one of those in use? At least one always is. */
   private on(p: Provider): boolean {
-    return p === 'claude' || this.codexOn;
+    return this.enabled[p];
   }
 
   /** The AI to use for one thing: the default, or the one a task asked for. */
@@ -118,15 +123,27 @@ export class Chat {
     if (on) await this.refreshAvailable();
   }
 
-  async setCodexEnabled(on: boolean): Promise<void> {
-    this.codexOn = on;
-    saveSetting('codex_enabled', on ? '1' : '0');
-    if (!on && this.provider === 'codex') {
-      this.provider = 'claude';
-      saveSetting('ai_provider', 'claude');
+  /** Switch an AI on or off. The last one can't be switched off; the default moves to one that is still on. */
+  async setProviderEnabled(p: Provider, on: boolean): Promise<boolean> {
+    if (!on && !PROVIDERS.some((o) => o !== p && this.enabled[o])) return false;
+    this.enabled[p] = on;
+    saveSetting(`${p}_enabled`, on ? '1' : '0');
+    if (!on && this.provider === p) {
+      this.provider = PROVIDERS.find((o) => this.enabled[o])!;
+      saveSetting('ai_provider', this.provider);
     }
+    this.markSetup();
     this.publish();
     if (on) await this.refreshAvailable(true);
+    return true;
+  }
+
+  /** The AIs have been chosen (by `npm run setup` or in Settings), so the first-run card stops asking. */
+  markSetup(): void {
+    if (this.setupDone) return;
+    this.setupDone = true;
+    saveSetting('setup_done', '1');
+    this.publish();
   }
 
   async setProvider(p: Provider): Promise<void> {
@@ -386,8 +403,8 @@ export class Chat {
       case 'ai': {
         const [sub, which] = arg.split(/\s+/);
         if (sub === 'use') {
-          if (which === 'codex' && !this.codexOn) return this.system(channel, 'Codex is off. Tick “Use Codex” in Settings → Office Manager first.', 'warn');
           if (!isProvider(which)) return this.system(channel, `Which one? \`/ai use ${this.ai.providers.map((p) => p.id).join('` or `/ai use ')}\`.`, 'warn');
+          if (!this.on(which)) return this.system(channel, `${LABEL[which]} is off. Tick it under Settings → Office Manager → AIs in use (or run \`npm run setup\`) first.`, 'warn');
           void this.setProvider(which);
           return this.system(channel, `Default AI is now ${LABEL[which]} (${this.models[which]}). Questions and new tasks use it. A task can pick another one: \`/task --${PROVIDERS.find((p) => p !== which)} …\`.`);
         }

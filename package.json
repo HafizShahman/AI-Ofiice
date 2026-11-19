@@ -18,6 +18,7 @@
     "build": "npm run build --workspace @ai-office/web",
     "start": "npm run start --workspace @ai-office/server",
     "typecheck": "tsc -p apps/server && tsc -p apps/web",
+    "setup": "node scripts/setup.mjs",
     "install-hooks": "node scripts/install-hooks.mjs",
     "uninstall-hooks": "node scripts/install-hooks.mjs --remove",
     "app": "node scripts/open-app.mjs",
